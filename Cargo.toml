@@ -1,0 +1,9 @@
+[package]
+name = "chorus_studio"
+version = "0.1.0"
+authors = ["Daniel Hauser <daniel.hauser@liwest.at>"]
+
+[dependencies]
+glium = "0.17.0"
+nalgebra = "0.12.3"
+image = "0.15.0"
