@@ -2,20 +2,22 @@
 extern crate glium;
 extern crate nalgebra;
 extern crate image;
+extern crate rusttype;
+extern crate unicode_normalization;
 
 mod gui;
 mod event;
 mod asset_storage;
 
 use std::cell::Cell;
-use std::cmp::{max, min};
+use std::borrow::Cow;
 
-use gui::{View, Bbox, Point, SpaceDivBuilder, DivUnit, DivDirection, DivAlignment};
+use gui::{View, Bbox, Point, SpaceDivBuilder, DivUnit, DivAlignment};
 use gui::window::WindowBuilder;
-use gui::renderer::Renderer;
+use gui::renderer::{Color, Renderer};
 use gui::widgets;
 
-use asset_storage::{TextureId, AssetStorage};
+use asset_storage::{TextureId, FontId, AssetStorage};
 
 fn main() {
     let running = Cell::new(true);
@@ -32,17 +34,18 @@ fn main() {
     let image = storage
         .create_texture(image, main_window.display())
         .unwrap();
+    let font = storage.load_font_file("testfont.ttf").unwrap();
 
     let mut renderer = Renderer::new(main_window.display(), &storage);
 
-    *main_window.view() = main_screen(image);
+    *main_window.view() = main_screen(image, font);
 
     while running.get() {
         main_window.update(&mut renderer);
     }
 }
 
-fn main_screen(image: TextureId) -> View {
+fn main_screen(image: TextureId, font: FontId) -> View {
     let zero = Point::new(0, 0);
     let mut view = View::new(Bbox::with_size(zero, zero));
 
@@ -74,12 +77,26 @@ fn main_screen(image: TextureId) -> View {
                 SpaceDivBuilder::new()
                     .width(DivUnit::Relative(0.5))
                     .height(DivUnit::Relative(1.0))
+                    .widget(Box::new(widgets::Label::new(
+                        font,
+                        Color::white(),
+                        24.0,
+                        Cow::Borrowed("Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.\n\nこのテキストはGoogle翻訳で翻訳されているため、おそらくあまり意味をなさないでしょう。\n\n这个文本可能没有什么意义，因为它是用Google翻译翻译的。"),
+                    )))
                     .build(),
             )
             .add_div(
                 SpaceDivBuilder::new()
-                    .width(DivUnit::Relative(1.0))
+                    .width(DivUnit::Relative(0.3))
                     .height(DivUnit::Pixels(45))
+                    .widget(Box::new(widgets::Label::new(
+                        font,
+                        Color::red(),
+                        24.0,
+                        Cow::Borrowed(
+                            "Hi! I'm a multi-\nline Text, containg some magnificent words.",
+                        ),
+                    )))
                     .build(),
             )
             .build(),

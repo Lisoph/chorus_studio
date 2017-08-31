@@ -1,13 +1,10 @@
-use std::ops::Deref;
 use std::cell::{RefCell, RefMut, Ref};
 use std::default::Default;
-use std::rc::Rc;
 
 use glium;
 use glium::glutin;
-use glium::glutin::GlContext;
 
-use gui::{Point, Size, Bbox, View, Widget};
+use gui::{Point, Size, Bbox, View};
 use gui::renderer::{Renderer, Painting};
 
 use event::Event;

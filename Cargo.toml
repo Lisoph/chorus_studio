@@ -7,3 +7,5 @@ authors = ["Daniel Hauser <daniel.hauser@liwest.at>"]
 glium = "0.17.0"
 nalgebra = "0.12.3"
 image = "0.15.0"
+rusttype = "0.2.1"
+unicode-normalization = "0.1.5"
