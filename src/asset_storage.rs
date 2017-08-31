@@ -136,7 +136,7 @@ impl<'a> AssetStorage<'a> {
 
             let image = image.to_rgba();
             let dimensions = image.dimensions();
-            let raw = RawImage2d::from_raw_rgba_reversed(&image.into_raw(), dimensions);
+            let raw = RawImage2d::from_raw_rgba(image.into_raw(), dimensions);
             raw
         };
 
