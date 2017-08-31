@@ -1,6 +1,11 @@
 Chorus Studio
 ===
 
+![Latest screenshot of Chorus Studio](./latest_screenshot.png)
+This is what Chorus Studio currently looks like, if you were to run it.
+
+---
+
 Chorus Studio is aiming to be the world's *second* real-time collaborative DAW (digital audio workstation), while at the same time trying to be the best!
 
 The first being [Ohm Studio](https://www.ohmstudio.com/). Indeed, Chorus Studio tries to copy all the good parts and improve upon the bad parts of Ohm Studio.
@@ -45,6 +50,14 @@ Chorus Studio should try to build a strong community consisting of musicians, wr
 4. A subreddit.
 
 [Newgrounds](https://www.newgrounds.com/) is a great role model for this.
+
+## How to run
+
+As of now, we don't provide prebuilt binaries. If you want to try out Chorus Studio for yourself, you will have to build it from source. Continue reading if you want to do so.
+
+Chorus Studio is written in the [Rust programming language](https://www.rust-lang.org), so a working Rust installation is required. Such can be installed easily with [rustup.rs](https://rustup.rs/).
+
+Then, once you have a working Rust installation, download or clone this repository onto your machine. Navigate a terminal inside the new chorus_studio directory and run the command `cargo run`. This will download and build all libraries Chorus Studio depends on and if building everything succeeded, will run the program.
 
 ---
 
