@@ -10,10 +10,11 @@ mod gui;
 mod event;
 mod asset_storage;
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::borrow::Cow;
+use std::rc::Rc;
 
-use gui::{View, Bbox, Point, SpaceDivBuilder, DivUnit, DivAlignment};
+use gui::{View, SpaceDivBuilder, DivUnit, DivAlignment};
 use gui::window::WindowBuilder;
 use gui::renderer::{Color, Renderer};
 use gui::widgets;
@@ -30,14 +31,14 @@ fn main() {
         .unwrap();
     main_window.on_close().add_handler(|| running.set(false));
 
-    let mut storage = AssetStorage::new();
-    let image = storage.load_image_file("testimg.png").unwrap();
-    let image = storage
+    let mut storage = Rc::new(RefCell::new(AssetStorage::new()));
+    let image = storage.borrow_mut().load_image_file("testimg.png").unwrap();
+    let image = storage.borrow_mut()
         .create_texture(image, main_window.display())
         .unwrap();
-    let font = storage.load_font_file("testfont.ttf").unwrap();
+    let font = storage.borrow_mut().load_font_file("testfont.ttf").unwrap();
 
-    let mut renderer = Renderer::new(main_window.display(), &storage);
+    let mut renderer = Renderer::new(&main_window, Rc::clone(&storage));
 
     *main_window.view() = main_screen(image, font);
 
@@ -47,8 +48,7 @@ fn main() {
 }
 
 fn main_screen(image: TextureId, font: FontId) -> View {
-    let zero = Point::new(0, 0);
-    let mut view = View::new(Bbox::with_size(zero, zero));
+    let mut view = View::without_bbox();
 
     // Header (logo)
     view.add_div(

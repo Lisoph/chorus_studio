@@ -6,7 +6,7 @@ use std::cmp::{max, min};
 
 use nalgebra;
 
-use self::renderer::{Color, ColoredRectangle, Painting};
+use self::renderer::Painting;
 use self::widgets::Widget;
 
 pub type Point = nalgebra::Vector2<i32>;
@@ -54,6 +54,11 @@ impl View {
                 .vert_align(DivAlignment::Min)
                 .build(),
         }
+    }
+
+    pub fn without_bbox() -> Self {
+        let zero = Point::new(0, 0);
+        Self::new(Bbox::new(zero, zero))
     }
 
     pub fn add_div(&mut self, div: SpaceDiv) {

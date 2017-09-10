@@ -1,4 +1,6 @@
 use std::borrow::Cow;
+use std::rc::Rc;
+use std::cell::RefCell;
 
 use glium;
 use glium::{Blend, Display, DrawParameters, Frame, Program, Surface, VertexBuffer};
@@ -12,6 +14,7 @@ use rusttype::gpu_cache::Cache as GlyphCache;
 use nalgebra as na;
 
 use gui::Bbox;
+use gui::window::Window;
 use asset_storage::{AssetStorage, FontId, TextureId};
 
 #[derive(Clone, Copy)]
@@ -91,12 +94,15 @@ impl TextRectVertex {
 
 implement_vertex!(TextRectVertex, position, texture_coords, color);
 
-const GLYPH_CACHE_WIDTH: u32 = 1024;
-const GLYPH_CACHE_HEIGHT: u32 = 1024;
+const GLYPH_CACHE_BASE_WIDTH: u32 = 1024;
+const GLYPH_CACHE_BASE_HEIGHT: u32 = 1024;
 
-pub struct Renderer<'a> {
-    display: &'a Display,
-    storage: &'a AssetStorage<'a>,
+pub struct Renderer<'a, 'b, 'c>
+where
+    'b: 'a,
+{
+    window: &'a Window<'b>,
+    storage: Rc<RefCell<AssetStorage<'c>>>,
     unit_color_rect_vbo: VertexBuffer<ColoredRectVertex>,
     unit_texture_rect_vbo: VertexBuffer<TexturedRectVertex>,
     program_rect_color: Program,
@@ -106,13 +112,15 @@ pub struct Renderer<'a> {
     glyph_cache_texture: Texture2d,
 }
 
-impl<'a> Renderer<'a> {
-    pub fn new(display: &'a Display, storage: &'a AssetStorage) -> Self {
+impl<'a, 'b, 'c> Renderer<'a, 'b, 'c> {
+    pub fn new(window: &'a Window<'b>, storage: Rc<RefCell<AssetStorage<'c>>>) -> Self {
+        let dpi_factor = window.window().hidpi_factor().round() as u32;
+
         Self {
-            display,
+            window,
             storage,
             unit_color_rect_vbo: VertexBuffer::new(
-                display,
+                window.display(),
                 &[
                     ColoredRectVertex::new(0.0, 1.0),
                     ColoredRectVertex::new(0.0, 0.0),
@@ -121,7 +129,7 @@ impl<'a> Renderer<'a> {
                 ],
             ).unwrap(),
             unit_texture_rect_vbo: VertexBuffer::new(
-                display,
+                window.display(),
                 &[
                     TexturedRectVertex::new((0.0, 1.0), (0.0, 1.0)),
                     TexturedRectVertex::new((0.0, 0.0), (0.0, 0.0)),
@@ -130,33 +138,42 @@ impl<'a> Renderer<'a> {
                 ],
             ).unwrap(),
             program_rect_color: Program::from_source(
-                display,
+                window.display(),
                 include_str!("glsl/rect_color.vs"),
                 include_str!("glsl/rect_color.fs"),
                 None,
             ).unwrap(),
             program_rect_texture: Program::from_source(
-                display,
+                window.display(),
                 include_str!("glsl/rect_texture.vs"),
                 include_str!("glsl/rect_texture.fs"),
                 None,
             ).unwrap(),
             program_rect_text: Program::from_source(
-                display,
+                window.display(),
                 include_str!("glsl/rect_text.vs"),
                 include_str!("glsl/rect_text.fs"),
                 None,
             ).unwrap(),
-            glyph_cache: GlyphCache::new(GLYPH_CACHE_WIDTH, GLYPH_CACHE_HEIGHT, 0.1, 0.1),
+            glyph_cache: GlyphCache::new(
+                GLYPH_CACHE_BASE_WIDTH * dpi_factor,
+                GLYPH_CACHE_BASE_HEIGHT * dpi_factor,
+                0.1,
+                0.1,
+            ),
             glyph_cache_texture: Texture2d::with_format(
-                display,
+                window.display(),
                 RawImage2d {
                     data: Cow::Owned(vec![
                         0u8;
-                        GLYPH_CACHE_WIDTH as usize * GLYPH_CACHE_HEIGHT as usize
+                        {
+                            let width = GLYPH_CACHE_BASE_WIDTH as usize * dpi_factor as usize;
+                            let height = GLYPH_CACHE_BASE_HEIGHT as usize * dpi_factor as usize;
+                            width * height
+                        }
                     ]),
-                    width: GLYPH_CACHE_WIDTH,
-                    height: GLYPH_CACHE_HEIGHT,
+                    width: GLYPH_CACHE_BASE_WIDTH * dpi_factor,
+                    height: GLYPH_CACHE_BASE_HEIGHT * dpi_factor,
                     format: texture::ClientFormat::U8,
                 },
                 texture::UncompressedFloatFormat::U8,
@@ -176,13 +193,12 @@ impl<'a> Renderer<'a> {
     }
 
     fn display_size(&self) -> (f32, f32) {
-        let (w, h) = self.display.get_framebuffer_dimensions();
+        let (w, h) = self.window.display().get_framebuffer_dimensions();
         (w as f32, h as f32)
     }
 
     fn dpi_factor(&self) -> f32 {
-        // TODO: Implement
-        1.0
+        self.window.window().hidpi_factor()
     }
 }
 
@@ -244,7 +260,7 @@ pub struct TexturedRectangle(pub Bbox, pub TextureId);
 
 impl DrawCommand for TexturedRectangle {
     fn draw(&self, renderer: &mut Renderer, frame: &mut Frame) {
-        if let Some(texture) = renderer.storage.texture(self.1) {
+        if let Some(texture) = renderer.storage.borrow().texture(self.1) {
             let origin: na::Vector2<f32> = na::convert(self.0.min);
             let origin: [f32; 2] = origin.into();
 
@@ -297,9 +313,9 @@ impl Text {
     }
 
     /// Layout the glyphs like a paragraph with wrapping lines.
-    fn layout_paragraph<'a>(&'a self, font: &'a Font) -> Vec<PositionedGlyph<'a>> {
+    fn layout_paragraph<'a>(&'a self, font: &'a Font, dpi_factor: f32) -> Vec<PositionedGlyph<'a>> {
         let mut glyphs = Vec::new();
-        for mut word in ParagraphGlyphs::new(&self, &font) {
+        for mut word in ParagraphGlyphs::new(&self, &font, dpi_factor) {
             glyphs.append(&mut word);
         }
         glyphs
@@ -308,8 +324,8 @@ impl Text {
 
 impl DrawCommand for Text {
     fn draw(&self, renderer: &mut Renderer, frame: &mut Frame) {
-        if let Some(font) = renderer.storage.font(self.font) {
-            let glyphs = self.layout_paragraph(font);
+        if let Some(font) = renderer.storage.borrow().font(self.font) {
+            let glyphs = self.layout_paragraph(font, renderer.dpi_factor());
             for glyph in glyphs.iter() {
                 renderer
                     .glyph_cache
@@ -391,7 +407,7 @@ impl DrawCommand for Text {
                 vertices
             };
 
-            let vertices = VertexBuffer::new(renderer.display, &vertices).unwrap();
+            let vertices = VertexBuffer::new(renderer.window.display(), &vertices).unwrap();
             let origin: na::Vector2<f32> = na::convert(self.bbox.min);
             let origin: [f32; 2] = origin.into();
 
@@ -427,6 +443,7 @@ struct ParagraphGlyphs<'a> {
     last_glyph: Option<ScaledGlyph<'a>>,
     caret: GlyphPoint<f32>,
     advance_y: f32,
+    dpi_factor: f32,
     word: Vec<PositionedGlyph<'a>>,
     text: &'a Text,
     font: &'a Font<'a>,
@@ -435,7 +452,7 @@ struct ParagraphGlyphs<'a> {
 }
 
 impl<'a> ParagraphGlyphs<'a> {
-    fn new(text: &'a Text, font: &'a Font) -> Self {
+    fn new(text: &'a Text, font: &'a Font, dpi_factor: f32) -> Self {
         let v_metrics = font.v_metrics(text.scale);
         let advance_y = v_metrics.ascent - v_metrics.descent + v_metrics.line_gap;
 
@@ -446,6 +463,7 @@ impl<'a> ParagraphGlyphs<'a> {
                 y: advance_y,
             },
             advance_y,
+            dpi_factor,
             word: Vec::new(),
             text,
             font,
@@ -476,6 +494,13 @@ impl<'a> ParagraphGlyphs<'a> {
             }
         }
     }
+
+    fn scale(&self) -> GlyphScale {
+        GlyphScale {
+            x: self.text.scale.x * self.dpi_factor,
+            y: self.text.scale.y * self.dpi_factor,
+        }
+    }
 }
 
 impl<'a> Iterator for ParagraphGlyphs<'a> {
@@ -502,7 +527,7 @@ impl<'a> Iterator for ParagraphGlyphs<'a> {
                 return Some(glyphs);
             } else {
                 if let Some(g) = self.font.glyph(c) {
-                    let g = g.scaled(self.text.scale);
+                    let g = g.scaled(self.scale());
                     self.word.push(g.clone().positioned(self.caret));
 
                     self.caret.x += g.h_metrics().advance_width;
@@ -510,7 +535,7 @@ impl<'a> Iterator for ParagraphGlyphs<'a> {
                     if let Some(ref last_glyph) = self.last_glyph {
                         self.caret.x +=
                             self.font
-                                .pair_kerning(self.text.scale, g.id(), last_glyph.id());
+                                .pair_kerning(self.scale(), g.id(), last_glyph.id());
                     }
                     self.last_glyph = Some(g.clone());
 
