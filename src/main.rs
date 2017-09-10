@@ -95,7 +95,7 @@ fn main_screen(image: TextureId, font: FontId) -> View {
                         Color::red(),
                         24.0,
                         Cow::Borrowed(
-                            "Hi! I'm a multi-\nline Text, containg some magnificent words.",
+                            "Hi! I'm a multi-\nline Text and I'm overflowing. Oh noes!",
                         ),
                     )))
                     .build(),
