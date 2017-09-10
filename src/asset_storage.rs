@@ -123,7 +123,7 @@ impl<'a> AssetStorage<'a> {
         Ok(id)
     }
 
-    pub fn image(&self, id: ImageId) -> Option<&DynamicImage> {
+    pub fn image(&'a self, id: ImageId) -> Option<&'a DynamicImage> {
         self.images.get(&id)
     }
 
@@ -147,7 +147,7 @@ impl<'a> AssetStorage<'a> {
         Ok(id)
     }
 
-    pub fn texture(&self, id: TextureId) -> Option<&CompressedSrgbTexture2d> {
+    pub fn texture(&'a self, id: TextureId) -> Option<&'a CompressedSrgbTexture2d> {
         self.textures.get(&id)
     }
 
@@ -165,7 +165,7 @@ impl<'a> AssetStorage<'a> {
         Ok(id)
     }
 
-    pub fn font(&self, id: FontId) -> Option<&'a Font> {
+    pub fn font(&'a self, id: FontId) -> Option<&'a Font> {
         self.fonts.get(&id)
     }
 }

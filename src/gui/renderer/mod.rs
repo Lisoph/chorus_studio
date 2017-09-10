@@ -1,18 +1,18 @@
 use std::borrow::Cow;
 
 use glium;
-use glium::{Display, Frame, VertexBuffer, Program, Surface, DrawParameters, Blend};
+use glium::{Blend, Display, DrawParameters, Frame, Program, Surface, VertexBuffer};
 use glium::texture;
-use glium::texture::{Texture2d, RawImage2d};
-use glium::index::{PrimitiveType, NoIndices};
+use glium::texture::{RawImage2d, Texture2d};
+use glium::index::{NoIndices, PrimitiveType};
 
-use rusttype::{Font, ScaledGlyph, PositionedGlyph, Scale as GlyphScale, Point as GlyphPoint};
+use rusttype::{Font, Point as GlyphPoint, PositionedGlyph, Scale as GlyphScale, ScaledGlyph};
 use rusttype::gpu_cache::Cache as GlyphCache;
 
 use nalgebra as na;
 
 use gui::Bbox;
-use asset_storage::{AssetStorage, TextureId, FontId};
+use asset_storage::{AssetStorage, FontId, TextureId};
 
 #[derive(Clone, Copy)]
 pub struct Color {
@@ -317,7 +317,7 @@ impl DrawCommand for Text {
             }
 
             let vertices = {
-                let mut glyph_cache = &mut renderer.glyph_cache;
+                let glyph_cache = &mut renderer.glyph_cache;
                 let texture = &mut renderer.glyph_cache_texture;
 
                 glyph_cache
@@ -455,11 +455,10 @@ impl<'a> ParagraphGlyphs<'a> {
             let indent = { self.word.iter().next().map(|g| g.position().x) };
             if let Some(indent) = indent {
                 for g in self.word.iter_mut() {
-                    self.caret = g.position() +
-                        ::rusttype::Vector::<f32> {
-                            x: -indent as f32,
-                            y: self.advance_y as f32,
-                        };
+                    self.caret = g.position() + ::rusttype::Vector::<f32> {
+                        x: -indent as f32,
+                        y: self.advance_y as f32,
+                    };
                     *g = g.clone().into_unpositioned().positioned(self.caret);
                 }
 
@@ -503,8 +502,9 @@ impl<'a> Iterator for ParagraphGlyphs<'a> {
                     self.caret.x += g.h_metrics().advance_width;
 
                     if let Some(ref last_glyph) = self.last_glyph {
-                        self.caret.x += self.font
-                            .pair_kerning(self.text.scale, g.id(), last_glyph.id());
+                        self.caret.x +=
+                            self.font
+                                .pair_kerning(self.text.scale, g.id(), last_glyph.id());
                     }
                     self.last_glyph = Some(g.clone());
 
@@ -515,7 +515,6 @@ impl<'a> Iterator for ParagraphGlyphs<'a> {
                     }
                 }
             }
-
         }
 
         self.handle_word_wrap();
