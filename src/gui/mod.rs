@@ -77,8 +77,6 @@ impl View {
     }
 
     fn draw_div(&self, div: &SpaceDiv, div_bbox: Bbox, painting: &mut Painting) {
-        painting.draw(ColoredRectangle(div_bbox, Color::rgba(1.0, 1.0, 0.0, 0.2)));
-
         if let Some(ref widget) = div.widget {
             widget.draw(div_bbox, painting);
         }
