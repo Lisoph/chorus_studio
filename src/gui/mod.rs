@@ -30,14 +30,6 @@ impl Bbox {
     pub fn size(&self) -> Size {
         self.max - self.min
     }
-
-    pub fn contains_point(&self, point: Point) -> bool {
-        self.min <= point && self.max >= point
-    }
-
-    pub fn fits(&self, other: &Bbox) -> bool {
-        self.min <= other.min && self.max >= other.max
-    }
 }
 
 pub struct View {
@@ -73,6 +65,7 @@ impl View {
         self.bbox = bbox;
     }
 
+    /// Returns the root space div of this view.
     pub fn space_div(&self) -> &SpaceDiv {
         &self.space_div
     }

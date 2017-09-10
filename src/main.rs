@@ -31,7 +31,7 @@ fn main() {
         .unwrap();
     main_window.on_close().add_handler(|| running.set(false));
 
-    let mut storage = Rc::new(RefCell::new(AssetStorage::new()));
+    let storage = Rc::new(RefCell::new(AssetStorage::new()));
     let image = storage.borrow_mut().load_image_file("testimg.png").unwrap();
     let image = storage.borrow_mut()
         .create_texture(image, main_window.display())

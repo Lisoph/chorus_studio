@@ -1,5 +1,6 @@
 use gui::Bbox;
-use gui::renderer::{Color, Painting, TexturedRectangle, Text};
+use gui::renderer::{Color, Painting, TexturedRectangle};
+use gui::renderer::text::Text;
 use std::borrow::Cow;
 
 use unicode_normalization::UnicodeNormalization;
