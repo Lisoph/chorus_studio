@@ -409,6 +409,12 @@ impl DrawCommand for Text {
                     &uniforms,
                     &DrawParameters {
                         blend: Blend::alpha_blending(),
+                        scissor: Some(glium::Rect {
+                            left: self.bbox.min.x as u32,
+                            bottom: renderer.display_size().1 as u32 - self.bbox.max.y as u32,
+                            width: self.bbox.size().x as u32,
+                            height: self.bbox.size().y as u32,
+                        }),
                         ..Default::default()
                     },
                 )

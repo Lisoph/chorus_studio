@@ -6,7 +6,7 @@ use std::cmp::{max, min};
 
 use nalgebra;
 
-use self::renderer::{Painting, Color, ColoredRectangle};
+use self::renderer::{Color, ColoredRectangle, Painting};
 use self::widgets::Widget;
 
 pub type Point = nalgebra::Vector2<i32>;
@@ -314,22 +314,18 @@ where
             let offset_x = match self.hori_align {
                 DivAlignment::Min => 0,
                 DivAlignment::Max => self.bbox.size().x - size.x,
-                DivAlignment::Center => {
-                    match self.dir {
-                        DivDirection::Horizontal => self.bbox.size().x / 2 - self.total_size.x / 2,
-                        DivDirection::Vertical => self.bbox.size().x / 2 - size.x / 2,
-                    }
-                }
+                DivAlignment::Center => match self.dir {
+                    DivDirection::Horizontal => self.bbox.size().x / 2 - self.total_size.x / 2,
+                    DivDirection::Vertical => self.bbox.size().x / 2 - size.x / 2,
+                },
             };
             let offset_y = match self.vert_align {
                 DivAlignment::Min => 0,
                 DivAlignment::Max => self.bbox.size().y - size.y,
-                DivAlignment::Center => {
-                    match self.dir {
-                        DivDirection::Horizontal => self.bbox.size().y / 2 - size.y / 2,
-                        DivDirection::Vertical => self.bbox.size().y / 2 - self.total_size.y / 2,
-                    }
-                }
+                DivAlignment::Center => match self.dir {
+                    DivDirection::Horizontal => self.bbox.size().y / 2 - size.y / 2,
+                    DivDirection::Vertical => self.bbox.size().y / 2 - self.total_size.y / 2,
+                },
             };
 
             let origin = match self.dir {

@@ -4,6 +4,7 @@ extern crate nalgebra;
 extern crate image;
 extern crate rusttype;
 extern crate unicode_normalization;
+extern crate unicode_segmentation;
 
 mod gui;
 mod event;
