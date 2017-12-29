@@ -2,6 +2,7 @@ use gl;
 use glutin;
 use glutin::GlContext;
 use nanovg;
+use event::Event;
 
 use std::time::Instant;
 
@@ -14,12 +15,6 @@ const RED: gui::Color = gui::Color {
     b: 0x77 as f32 / 255.0,
     a: 1.0,
 };
-//const BLUE: gui::Color = gui::Color {
-//    r: 0x2e as f32 / 255.0,
-//    g: 0x50 as f32 / 255.0,
-//    b: 0x77 as f32 / 255.0,
-//    a: 1.0,
-//};
 const BLUE: gui::Color = gui::Color {
     r: 112 as f32 / 255.0,
     g: 48 as f32 / 255.0,
@@ -29,14 +24,14 @@ const BLUE: gui::Color = gui::Color {
 
 
 /// Chorus Studio's main window.
-pub struct MainWindow {
+pub struct MainWindow<'a> {
     events_loop: glutin::EventsLoop,
     gl_window: glutin::GlWindow,
-    pub was_closed: bool,
     start_time: Instant,
+    pub on_close: Event<'a>,
 }
 
-impl MainWindow {
+impl<'a> MainWindow<'a> {
     pub fn new() -> Result<Self, CreateMainWindowError> {
         let events_loop = glutin::EventsLoop::new();
         let window_builder = glutin::WindowBuilder::new()
@@ -52,30 +47,28 @@ impl MainWindow {
         unsafe {
             gl_window.make_current()?;
             gl::load_with(|symbol| gl_window.get_proc_address(symbol) as *const _);
-            gl::ClearColor(0.2, 0.4, 0.8, 1.0);
         }
 
         Ok(MainWindow {
             events_loop,
             gl_window,
-            was_closed: false,
             start_time: Instant::now(),
+            on_close: Event::new(),
         })
     }
 
     /// Update and draw the window for one frame.
     pub fn update_draw(&mut self, view: &mut gui::View, context: &nanovg::Context) {
-        let mut was_closed = self.was_closed;
         let gl_window = &self.gl_window;
+        let on_close = &self.on_close;
         self.events_loop.poll_events(|event| match event {
            glutin::Event::WindowEvent { event, .. } => match event {
-               glutin::WindowEvent::Closed => was_closed = true,
+               glutin::WindowEvent::Closed => on_close.invoke(),
                glutin::WindowEvent::Resized(w, h) => gl_window.resize(w, h),
                _ => {}
            },
             _ => {}
         });
-        self.was_closed = was_closed;
 
         let (w, h) = self.gl_window.get_inner_size().unwrap_or(INITIAL_WINDOW_SIZE);
         let (w, h) = (w as i32, h as i32);

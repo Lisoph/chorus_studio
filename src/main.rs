@@ -7,19 +7,24 @@ extern crate unicode_normalization;
 mod gui;
 mod event;
 
+use std::cell::Cell;
+
 use gui::{View, SpaceDivBuilder, DivUnit, DivAlignment, Color};
 use gui::main_window::MainWindow;
 use gui::widgets;
 
 fn main() {
+    let running = Cell::new(true);
     let mut main_window = MainWindow::new().expect("Failed to create window!");
-    let nvg = nanovg::ContextBuilder::new().stencil_strokes().build().expect("Failed to create NanoVG context!");
+    main_window.on_close.add_handler(|| running.set(false));
 
+    let nvg = nanovg::ContextBuilder::new().stencil_strokes().build().expect("Failed to create NanoVG context!");
     let image = nanovg::Image::new(&nvg).build_from_file("testimg.png").expect("Failed to load image!");
     let font = nanovg::Font::from_file(&nvg, "testfont", "testfont.ttf").expect("Failed to load font!");
+
     let mut main_screen = main_screen(image, font);
 
-    while !main_window.was_closed {
+    while running.get() {
         main_window.update_draw(&mut main_screen, &nvg);
     }
 }
