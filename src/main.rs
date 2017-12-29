@@ -1,53 +1,35 @@
-#[macro_use]
-extern crate glium;
+extern crate gl;
+extern crate glutin;
+extern crate nanovg;
 extern crate nalgebra;
-extern crate image;
-extern crate rusttype;
 extern crate unicode_normalization;
-extern crate unicode_segmentation;
 
 mod gui;
 mod event;
-mod asset_storage;
 
-use std::cell::{Cell, RefCell};
-use std::borrow::Cow;
-use std::rc::Rc;
+use std::cell::Cell;
 
-use gui::{View, SpaceDivBuilder, DivUnit, DivAlignment};
-use gui::window::WindowBuilder;
-use gui::renderer::{Color, Renderer};
+use gui::{View, SpaceDivBuilder, DivUnit, DivAlignment, Color};
+use gui::main_window::MainWindow;
 use gui::widgets;
-
-use asset_storage::{TextureId, FontId, AssetStorage};
 
 fn main() {
     let running = Cell::new(true);
+    let mut main_window = MainWindow::new().expect("Failed to create window!");
+    main_window.on_close.add_handler(|| running.set(false));
 
-    let main_window = WindowBuilder::new()
-        .with_dimensions(1024, 720)
-        .with_title("Chorus Studio")
-        .build()
-        .unwrap();
-    main_window.on_close().add_handler(|| running.set(false));
+    let nvg = nanovg::ContextBuilder::new().stencil_strokes().build().expect("Failed to create NanoVG context!");
+    let image = nanovg::Image::new(&nvg).build_from_file("testimg.png").expect("Failed to load image!");
+    let font = nanovg::Font::from_file(&nvg, "testfont", "testfont.ttf").expect("Failed to load font!");
 
-    let storage = Rc::new(RefCell::new(AssetStorage::new()));
-    let image = storage.borrow_mut().load_image_file("testimg.png").unwrap();
-    let image = storage.borrow_mut()
-        .create_texture(image, main_window.display())
-        .unwrap();
-    let font = storage.borrow_mut().load_font_file("testfont.ttf").unwrap();
-
-    let mut renderer = Renderer::new(&main_window, Rc::clone(&storage));
-
-    *main_window.view() = main_screen(image, font);
+    let mut main_screen = main_screen(image, font);
 
     while running.get() {
-        main_window.update(&mut renderer);
+        main_window.update_draw(&mut main_screen, &nvg);
     }
 }
 
-fn main_screen(image: TextureId, font: FontId) -> View {
+fn main_screen<'a>(image: nanovg::Image<'a>, font: nanovg::Font<'a>) -> View<'a> {
     let mut view = View::without_bbox();
 
     // Header (logo)
@@ -82,7 +64,7 @@ fn main_screen(image: TextureId, font: FontId) -> View {
                         font,
                         Color::white(),
                         24.0,
-                        Cow::Borrowed("Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.\n\nこのテキストはGoogle翻訳で翻訳されているため、おそらくあまり意味をなさないでしょう。\n\n这个文本可能没有什么意义，因为它是用Google翻译翻译的。"),
+                        "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.\n\nこのテキストはGoogle翻訳で翻訳されているため、おそらくあまり意味をなさないでしょう。\n\n这个文本可能没有什么意义，因为它是用Google翻译翻译的。",
                     )))
                     .build(),
             )
@@ -94,9 +76,7 @@ fn main_screen(image: TextureId, font: FontId) -> View {
                         font,
                         Color::red(),
                         24.0,
-                        Cow::Borrowed(
-                            "Hi! I'm a multi-\nline Text and I'm overflowing. Oh noes!",
-                        ),
+                        "Hi! I'm a multi-\nline Text and I'm overflowing. Oh noes!",
                     )))
                     .build(),
             )
