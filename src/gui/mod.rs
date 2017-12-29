@@ -1,16 +1,48 @@
-pub mod window;
+pub mod main_window;
 pub mod widgets;
-pub mod renderer;
+use self::widgets::Widget;
 
 use std::cmp::{max, min};
 
 use nalgebra;
-
-use self::renderer::Painting;
-use self::widgets::Widget;
+use nanovg;
 
 pub type Point = nalgebra::Vector2<i32>;
 pub type Size = nalgebra::Vector2<i32>;
+
+#[derive(Clone, Copy)]
+pub struct Color {
+    pub r: f32,
+    pub g: f32,
+    pub b: f32,
+    pub a: f32,
+}
+
+impl Color {
+    pub fn rgba(r: f32, g: f32, b: f32, a: f32) -> Self {
+        Self { r, g, b, a }
+    }
+
+    pub fn white() -> Self {
+        Color::rgba(1.0, 1.0, 1.0, 1.0)
+    }
+
+    pub fn red() -> Self {
+        Color::rgba(1.0, 0.0, 0.0, 1.0)
+    }
+}
+
+impl Into<[f32; 4]> for Color {
+    fn into(self) -> [f32; 4] {
+        [self.r, self.g, self.b, self.a]
+    }
+}
+
+impl Into<nanovg::Color> for Color {
+    fn into(self) -> nanovg::Color {
+        nanovg::Color::new(self.r, self.g, self.b, self.a)
+    }
+}
 
 #[derive(Clone, Copy, Debug)]
 pub struct Bbox {
@@ -32,12 +64,12 @@ impl Bbox {
     }
 }
 
-pub struct View {
+pub struct View<'a> {
     bbox: Bbox,
-    space_div: SpaceDiv,
+    space_div: SpaceDiv<'a>,
 }
 
-impl View {
+impl<'a> View<'a> {
     pub fn new(bbox: Bbox) -> Self {
         Self {
             bbox,
@@ -53,7 +85,7 @@ impl View {
         Self::new(Bbox::new(zero, zero))
     }
 
-    pub fn add_div(&mut self, div: SpaceDiv) {
+    pub fn add_div(&mut self, div: SpaceDiv<'a>) {
         self.space_div.add_div(div);
     }
 
@@ -70,24 +102,36 @@ impl View {
         &self.space_div
     }
 
-    pub fn draw(&self, painting: &mut Painting) {
-        self.draw_div(&self.space_div, self.bbox, painting);
+    pub fn draw(&self, frame: &nanovg::Frame) {
+        self.draw_div(&self.space_div, self.bbox, frame);
     }
 
-    fn draw_div(&self, div: &SpaceDiv, div_bbox: Bbox, painting: &mut Painting) {
+    fn draw_div(&self, div: &SpaceDiv, div_bbox: Bbox, frame: &nanovg::Frame) {
+        // Useful debugging code for analyzing the bboxes.
+//        frame.path(|path| {
+//            let origin = (div_bbox.min.x as f32, div_bbox.min.y as f32);
+//            let size = (div_bbox.size().x as f32, div_bbox.size().y as f32);
+//            path.rect(origin, size);
+//            path.stroke(nanovg::StrokeStyle {
+//                coloring_style: nanovg::ColoringStyle::Color(Color::white().into()),
+//                width: 2.0,
+//                .. Default::default()
+//            });
+//        }, Default::default());
+
         if let Some(ref widget) = div.widget {
-            widget.draw(div_bbox, painting);
+            widget.draw(div_bbox, frame);
         }
 
         for (div, bbox) in div.children(div_bbox) {
-            self.draw_div(div, bbox, painting);
+            self.draw_div(div, bbox, frame);
         }
     }
 }
 
 #[derive(Clone, Copy)]
 pub struct DivUnitCalcData<'a> {
-    pub div: &'a SpaceDiv,
+    pub div: &'a SpaceDiv<'a>,
     pub direction: DivDirection,
     pub parent_size: Size,
     pub remaining: i32,
@@ -115,7 +159,7 @@ pub enum DivAlignment {
     Center,
 }
 
-pub struct SpaceDiv {
+pub struct SpaceDiv<'a> {
     width: DivUnit,
     height: DivUnit,
     min_width: Option<DivUnit>,
@@ -125,12 +169,12 @@ pub struct SpaceDiv {
     layout_dir: DivDirection,
     hori_align: DivAlignment,
     vert_align: DivAlignment,
-    widget: Option<Box<Widget>>,
-    child_divs: Vec<SpaceDiv>,
+    widget: Option<Box<Widget + 'a>>,
+    child_divs: Vec<SpaceDiv<'a>>,
 }
 
-impl SpaceDiv {
-    pub fn full() -> SpaceDivBuilder {
+impl<'a> SpaceDiv<'a> {
+    pub fn full() -> SpaceDivBuilder<'a> {
         SpaceDivBuilder::new()
             .width(DivUnit::Relative(1.0))
             .height(DivUnit::Relative(1.0))
@@ -151,7 +195,7 @@ impl SpaceDiv {
         )
     }
 
-    pub fn add_div(&mut self, div: SpaceDiv) {
+    pub fn add_div(&mut self, div: SpaceDiv<'a>) {
         self.child_divs.push(div);
     }
 
@@ -228,7 +272,7 @@ impl SpaceDiv {
     }
 }
 
-impl Default for SpaceDiv {
+impl<'a> Default for SpaceDiv<'a> {
     fn default() -> Self {
         Self {
             width: DivUnit::Relative(1.0),
@@ -251,7 +295,7 @@ impl Default for SpaceDiv {
 /// This is essentially the layout engine.
 pub struct SpaceDivIter<'a, I>
 where
-    I: Iterator<Item = &'a SpaceDiv>,
+    I: Iterator<Item = &'a SpaceDiv<'a>>,
 {
     /// The space divisions to compute the layout of.
     space_divs: I,
@@ -273,7 +317,7 @@ where
 
 impl<'a, I> SpaceDivIter<'a, I>
 where
-    I: Iterator<Item = &'a SpaceDiv>,
+    I: Iterator<Item = &'a SpaceDiv<'a>>,
 {
     fn new(
         space_divs: I,
@@ -298,9 +342,9 @@ where
 
 impl<'a, I> Iterator for SpaceDivIter<'a, I>
 where
-    I: Iterator<Item = &'a SpaceDiv>,
+    I: Iterator<Item = &'a SpaceDiv<'a>>,
 {
-    type Item = (&'a SpaceDiv, Bbox);
+    type Item = (&'a SpaceDiv<'a>, Bbox);
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(div) = self.space_divs.next() {
@@ -358,11 +402,11 @@ where
     }
 }
 
-pub struct SpaceDivBuilder {
-    current: SpaceDiv,
+pub struct SpaceDivBuilder<'a> {
+    current: SpaceDiv<'a>,
 }
 
-impl SpaceDivBuilder {
+impl<'a> SpaceDivBuilder<'a> {
     pub fn new() -> Self {
         Self {
             current: Default::default(),
@@ -419,17 +463,17 @@ impl SpaceDivBuilder {
         self
     }
 
-    pub fn widget(mut self, widget: Box<Widget>) -> Self {
+    pub fn widget(mut self, widget: Box<Widget + 'a>) -> Self {
         self.current.widget = Some(widget);
         self
     }
 
-    pub fn add_div(mut self, div: SpaceDiv) -> Self {
+    pub fn add_div(mut self, div: SpaceDiv<'a>) -> Self {
         self.current.add_div(div);
         self
     }
 
-    pub fn build(self) -> SpaceDiv {
+    pub fn build(self) -> SpaceDiv<'a> {
         self.current
     }
 }
