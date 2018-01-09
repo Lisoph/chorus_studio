@@ -68,8 +68,6 @@ impl Bbox {
 
 pub struct View<'a> {
     bbox: Bbox,
-//    space_div: SpaceDiv<'a>,
-//    cache: RefCell<Option<Vec<(&'a SpaceDiv<'a>, Bbox)>>>,
     arena: it::Arena<SpaceDiv<'a>>,
     root_div: it::NodeId,
     children: Vec<it::NodeId>,
@@ -336,6 +334,7 @@ pub struct SpaceDivIter<'a, I>
 where
     I: Iterator<Item = it::NodeId>,
 {
+    /// The arena to which the NodeIds refer.
     arena: &'a it::Arena<SpaceDiv<'a>>,
     /// The space divisions to compute the layout of.
     space_divs: I,
