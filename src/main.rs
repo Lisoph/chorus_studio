@@ -3,6 +3,7 @@ extern crate glutin;
 extern crate nanovg;
 extern crate nalgebra;
 extern crate unicode_normalization;
+extern crate indextree;
 
 mod gui;
 mod event;
@@ -33,54 +34,55 @@ fn main_screen<'a>(image: nanovg::Image<'a>, font: nanovg::Font<'a>) -> View<'a>
     let mut view = View::without_bbox();
 
     // Header (logo)
-    view.add_div(
-        SpaceDivBuilder::new()
-            .width(DivUnit::Relative(1.0))
-            .height(DivUnit::Pixels(150))
-            .hori_align(DivAlignment::Center)
-            .add_div(
-                SpaceDivBuilder::new()
-                    .width(DivUnit::Relative(1.0))
-                    .min_width(DivUnit::Pixels(640))
-                    .max_width(DivUnit::Pixels(1100))
-                    .height(DivUnit::Pixels(150))
-                    .widget(Box::new(widgets::Image::new(image)))
-                    .build(),
-            )
-            .build(),
+    let header = view.add_div(None,
+                              SpaceDivBuilder::new()
+                                  .width(DivUnit::Relative(1.0))
+                                  .height(DivUnit::Pixels(150))
+                                  .hori_align(DivAlignment::Center)
+                                  .build(),
+    );
+    view.add_div(Some(header),
+                 SpaceDivBuilder::new()
+                     .width(DivUnit::Relative(1.0))
+                     .min_width(DivUnit::Pixels(640))
+                     .max_width(DivUnit::Pixels(1100))
+                     .height(DivUnit::Pixels(150))
+                     .widget(Box::new(widgets::Image::new(image)))
+                     .build(),
     );
 
-    view.add_div(
-        SpaceDivBuilder::new()
-            .horizontal()
-            .width(DivUnit::Relative(1.0))
-            .height(DivUnit::Relative(0.5))
-            .vert_align(DivAlignment::Center)
-            .add_div(
-                SpaceDivBuilder::new()
-                    .width(DivUnit::Relative(0.5))
-                    .height(DivUnit::Relative(1.0))
-                    .widget(Box::new(widgets::Label::new(
-                        font,
-                        Color::white(),
-                        24.0,
-                        "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.\n\nこのテキストはGoogle翻訳で翻訳されているため、おそらくあまり意味をなさないでしょう。\n\n这个文本可能没有什么意义，因为它是用Google翻译翻译的。",
-                    )))
-                    .build(),
-            )
-            .add_div(
-                SpaceDivBuilder::new()
-                    .width(DivUnit::Relative(0.3))
-                    .height(DivUnit::Pixels(45))
-                    .widget(Box::new(widgets::Label::new(
-                        font,
-                        Color::red(),
-                        24.0,
-                        "Hi! I'm a multi-\nline Text and I'm overflowing. Oh noes!",
-                    )))
-                    .build(),
-            )
-            .build(),
+    let body = view.add_div(None,
+                            SpaceDivBuilder::new()
+                                .horizontal()
+                                .width(DivUnit::Relative(1.0))
+                                .height(DivUnit::Relative(0.5))
+                                .vert_align(DivAlignment::Center)
+                                .build(),
+    );
+
+    view.add_div(Some(body),
+                 SpaceDivBuilder::new()
+                     .width(DivUnit::Relative(0.5))
+                     .height(DivUnit::Relative(1.0))
+                     .widget(Box::new(widgets::Label::new(
+                         font,
+                         Color::white(),
+                         24.0,
+                         "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.\n\nこのテキストはGoogle翻訳で翻訳されているため、おそらくあまり意味をなさないでしょう。\n\n这个文本可能没有什么意义，因为它是用Google翻译翻译的。",
+                     )))
+                     .build(),
+    );
+    view.add_div(Some(body),
+                 SpaceDivBuilder::new()
+                     .width(DivUnit::Relative(0.3))
+                     .height(DivUnit::Pixels(45))
+                     .widget(Box::new(widgets::Label::new(
+                         font,
+                         Color::red(),
+                         24.0,
+                         "Hi! I'm a multi-\nline Text and I'm overflowing. Oh noes!",
+                     )))
+                     .build(),
     );
 
     view
