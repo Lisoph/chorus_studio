@@ -3,9 +3,11 @@ pub mod widgets;
 use self::widgets::Widget;
 
 use std::cmp::{max, min};
+use std::cell::{RefCell, Ref};
 
 use nalgebra;
 use nanovg;
+use indextree as it;
 
 pub type Point = nalgebra::Vector2<i32>;
 pub type Size = nalgebra::Vector2<i32>;
@@ -44,7 +46,7 @@ impl Into<nanovg::Color> for Color {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Bbox {
     pub min: Point,
     pub max: Point,
@@ -66,17 +68,27 @@ impl Bbox {
 
 pub struct View<'a> {
     bbox: Bbox,
-    space_div: SpaceDiv<'a>,
+//    space_div: SpaceDiv<'a>,
+//    cache: RefCell<Option<Vec<(&'a SpaceDiv<'a>, Bbox)>>>,
+    arena: it::Arena<SpaceDiv<'a>>,
+    root_div: it::NodeId,
+    children: Vec<it::NodeId>,
+    cache: RefCell<Option<Vec<(it::NodeId, Bbox)>>>,
 }
 
 impl<'a> View<'a> {
     pub fn new(bbox: Bbox) -> Self {
-        Self {
-            bbox,
-            space_div: SpaceDiv::full()
+        let mut arena = it::Arena::new();
+        let root_div = arena.new_node(SpaceDiv::full()
                 .vertical()
                 .vert_align(DivAlignment::Min)
-                .build(),
+                .build());
+        Self {
+            bbox,
+            arena,
+            root_div,
+            children: Vec::new(),
+            cache: RefCell::new(None),
         }
     }
 
@@ -85,8 +97,12 @@ impl<'a> View<'a> {
         Self::new(Bbox::new(zero, zero))
     }
 
-    pub fn add_div(&mut self, div: SpaceDiv<'a>) {
-        self.space_div.add_div(div);
+    pub fn add_div(&mut self, parent: Option<it::NodeId>, div: SpaceDiv<'a>) -> it::NodeId {
+        let node = self.arena.new_node(div);
+        parent.unwrap_or(self.root_div).append(node, &mut self.arena);
+        self.children.push(node);
+        *self.cache.borrow_mut() = None;
+        node
     }
 
     pub fn bbox(&self) -> &Bbox {
@@ -94,16 +110,24 @@ impl<'a> View<'a> {
     }
 
     pub fn set_bbox(&mut self, bbox: Bbox) {
+        if bbox != self.bbox {
+            *self.cache.borrow_mut() = None;
+        }
+
         self.bbox = bbox;
     }
 
     /// Returns the root space div of this view.
-    pub fn space_div(&self) -> &SpaceDiv {
-        &self.space_div
+    pub fn space_div(&self) -> &SpaceDiv<'a> {
+        &self.arena[self.root_div].data
     }
 
     pub fn draw(&self, frame: &nanovg::Frame) {
-        self.draw_div(&self.space_div, self.bbox, frame);
+        if let Some(ref divs) = *self.divs() {
+            for &(div, bbox) in divs.iter() {
+                self.draw_div(&self.arena[div].data, bbox, frame);
+            }
+        }
     }
 
     fn draw_div(&self, div: &SpaceDiv, div_bbox: Bbox, frame: &nanovg::Frame) {
@@ -122,10 +146,28 @@ impl<'a> View<'a> {
         if let Some(ref widget) = div.widget {
             widget.draw(div_bbox, frame);
         }
+    }
 
-        for (div, bbox) in div.children(div_bbox) {
-            self.draw_div(div, bbox, frame);
+    /// Recursively visit all space divs of this view.
+    fn visit_divs<F: FnMut(it::NodeId, Bbox)>(&self, id: it::NodeId, bbox: Bbox, visitor: &mut F) {
+        visitor(id, bbox);
+        for (c, bbox) in self.arena[id].data.children(&self.arena, id, bbox) {
+            self.visit_divs(c, bbox, visitor);
         }
+    }
+
+    fn build_cache(&self) {
+        let mut vec = Vec::with_capacity(64);
+        self.visit_divs(self.root_div, self.bbox, &mut |div, bbox| vec.push((div, bbox)));
+        *self.cache.borrow_mut() = Some(vec);
+    }
+
+    fn divs(&self) -> Ref<Option<Vec<(it::NodeId, Bbox)>>> {
+        let is_none = { self.cache.borrow().is_none() };
+        if is_none {
+            self.build_cache();
+        }
+        self.cache.borrow()
     }
 }
 
@@ -170,7 +212,6 @@ pub struct SpaceDiv<'a> {
     hori_align: DivAlignment,
     vert_align: DivAlignment,
     widget: Option<Box<Widget + 'a>>,
-    child_divs: Vec<SpaceDiv<'a>>,
 }
 
 impl<'a> SpaceDiv<'a> {
@@ -180,23 +221,22 @@ impl<'a> SpaceDiv<'a> {
             .height(DivUnit::Relative(1.0))
     }
 
-    // Compute the layout of the children.
-    pub fn children(&self, self_bbox: Bbox) -> SpaceDivIter<::std::slice::Iter<SpaceDiv>> {
-        let total_size = self.child_divs.iter().fold(Size::new(0, 0), |total, div| {
+    /// Compute the layout of the children divs.
+    fn children(&self, arena: &'a it::Arena<SpaceDiv<'a>>, self_id: it::NodeId, self_bbox: Bbox) -> SpaceDivIter<it::Children<'a, SpaceDiv<'a>>> {
+        let total_size = self_id.children(arena).fold(Size::new(0, 0), |total, div| {
+            let div = &arena[div].data;
             total + div.size_pixels(self_bbox.size(), DivDirection::Vertical, Point::new(0, 0))
         });
+
         SpaceDivIter::new(
-            self.child_divs.iter(),
+            arena,
+            self_id.children(arena),
             total_size,
             self_bbox,
             self.layout_dir,
             self.hori_align,
             self.vert_align,
         )
-    }
-
-    pub fn add_div(&mut self, div: SpaceDiv<'a>) {
-        self.child_divs.push(div);
     }
 
     /// Compute this div's size in pixels.
@@ -285,7 +325,6 @@ impl<'a> Default for SpaceDiv<'a> {
             hori_align: DivAlignment::Min,
             vert_align: DivAlignment::Min,
             widget: None,
-            child_divs: Vec::new(),
         }
     }
 }
@@ -295,8 +334,9 @@ impl<'a> Default for SpaceDiv<'a> {
 /// This is essentially the layout engine.
 pub struct SpaceDivIter<'a, I>
 where
-    I: Iterator<Item = &'a SpaceDiv<'a>>,
+    I: Iterator<Item = it::NodeId>,
 {
+    arena: &'a it::Arena<SpaceDiv<'a>>,
     /// The space divisions to compute the layout of.
     space_divs: I,
     /// The sum total of all the space division sizes.
@@ -317,9 +357,10 @@ where
 
 impl<'a, I> SpaceDivIter<'a, I>
 where
-    I: Iterator<Item = &'a SpaceDiv<'a>>,
+    I: Iterator<Item = it::NodeId>,
 {
     fn new(
+        arena: &'a it::Arena<SpaceDiv<'a>>,
         space_divs: I,
         total_size: Size,
         bbox: Bbox,
@@ -328,6 +369,7 @@ where
         vert_align: DivAlignment,
     ) -> Self {
         Self {
+            arena,
             space_divs,
             total_size,
             bbox,
@@ -342,12 +384,13 @@ where
 
 impl<'a, I> Iterator for SpaceDivIter<'a, I>
 where
-    I: Iterator<Item = &'a SpaceDiv<'a>>,
+    I: Iterator<Item = it::NodeId>,
 {
-    type Item = (&'a SpaceDiv<'a>, Bbox);
+    type Item = (it::NodeId, Bbox);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(div) = self.space_divs.next() {
+        if let Some(div_id) = self.space_divs.next() {
+            let div = &self.arena[div_id].data;
             let size = div.size_pixels(self.bbox.size(), self.dir, self.previous_end);
 
             // Compute offset coordinates from top-left.
@@ -395,7 +438,7 @@ where
                 DivDirection::Vertical => size.y * dir_y,
             };
 
-            Some((div, div_bbox))
+            Some((div_id, div_bbox))
         } else {
             None
         }
@@ -465,11 +508,6 @@ impl<'a> SpaceDivBuilder<'a> {
 
     pub fn widget(mut self, widget: Box<Widget + 'a>) -> Self {
         self.current.widget = Some(widget);
-        self
-    }
-
-    pub fn add_div(mut self, div: SpaceDiv<'a>) -> Self {
-        self.current.add_div(div);
         self
     }
 
