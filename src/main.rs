@@ -12,7 +12,7 @@ use std::cell::Cell;
 
 use indextree as it;
 
-use gui::{View, SpaceDivBuilder, DivUnit, DivAlignment, Color};
+use gui::{View, SpaceDivBuilder, DivUnit, DivAlignment, DivOverflow, Color};
 use gui::main_window::MainWindow;
 use gui::widgets;
 
@@ -68,7 +68,7 @@ impl<'a> MainScreen<'a> {
         let body = view.add_div(None,
             SpaceDivBuilder::new()
                 .width(DivUnit::Relative(1.0))
-                .height(DivUnit::Calc(Box::new(|data| data.remaining)))
+                .height(DivUnit::Calc(Box::new(|data| data.remaining - 100)))
                 .horizontal()
                 .build(),
         );
@@ -80,6 +80,7 @@ impl<'a> MainScreen<'a> {
                 .min_width(DivUnit::Pixels(100))
                 .vertical()
                 .vert_align(DivAlignment::Min)
+                .vert_overflow(DivOverflow::Clip)
                 .background_color(Color::rgba(0.4, 0.2, 0.0, 1.0))
                 .build(),
         );
@@ -98,7 +99,7 @@ impl<'a> MainScreen<'a> {
 
     fn update(&mut self) {
         self.ticks += 1;
-        if self.ticks % 300 == 0 {
+        if self.ticks % 100 == 0 {
             self.view.add_div(Some(self.chat),
                 SpaceDivBuilder::new()
                     .width(DivUnit::Relative(1.0))

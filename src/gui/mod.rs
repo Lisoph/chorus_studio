@@ -13,6 +13,10 @@ use indextree as it;
 pub type Point = nalgebra::Vector2<i32>;
 pub type Size = nalgebra::Vector2<i32>;
 
+pub fn point_min(a: Point, b: Point) -> Point {
+    Point::new(min(a.x, b.x), min(a.y, b.y))
+}
+
 #[derive(Clone, Copy)]
 pub struct Color {
     pub r: f32,
@@ -187,17 +191,27 @@ pub enum DivUnit {
     Calc(Box<Fn(DivUnitCalcData) -> i32>),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum DivDirection {
     Horizontal,
     Vertical,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum DivAlignment {
     Min,
     Max,
     Center,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum DivOverflow {
+    /// Nothing happens, the content just overflows.
+    Overflow,
+    /// The content gets cut off where it overflows.
+    Clip,
+    /// The content is scrollable.
+    Scroll,
 }
 
 pub struct SpaceDiv<'a> {
@@ -210,6 +224,8 @@ pub struct SpaceDiv<'a> {
     layout_dir: DivDirection,
     hori_align: DivAlignment,
     vert_align: DivAlignment,
+    hori_overflow: DivOverflow,
+    vert_overflow: DivOverflow,
     widget: Option<Box<Widget + 'a>>,
     background_color: Option<Color>,
 }
@@ -324,6 +340,8 @@ impl<'a> Default for SpaceDiv<'a> {
             layout_dir: DivDirection::Horizontal,
             hori_align: DivAlignment::Min,
             vert_align: DivAlignment::Min,
+            hori_overflow: DivOverflow::Overflow,
+            vert_overflow: DivOverflow::Overflow,
             widget: None,
             background_color: None,
         }
@@ -505,6 +523,16 @@ impl<'a> SpaceDivBuilder<'a> {
 
     pub fn vert_align(mut self, vert_align: DivAlignment) -> Self {
         self.current.vert_align = vert_align;
+        self
+    }
+
+    pub fn hori_overflow(mut self, hori_overflow: DivOverflow) -> Self {
+        self.current.hori_overflow = hori_overflow;
+        self
+    }
+
+    pub fn vert_overflow(mut self, vert_overflow: DivOverflow) -> Self {
+        self.current.vert_overflow = vert_overflow;
         self
     }
 
