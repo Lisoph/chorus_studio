@@ -60,7 +60,7 @@ impl<'a> MainScreen<'a> {
             SpaceDivBuilder::new()
                 .width(DivUnit::Relative(0.25))
                 .height(DivUnit::Relative(1.0))
-                .min_width(DivUnit::Pixels(200))
+                .min_width(DivUnit::Pixels(250))
                 .widget(Box::new(widget::Label::new(title_font, Color::white(), 32.0, "Chorus Studio")))
                 .build(),
         );
