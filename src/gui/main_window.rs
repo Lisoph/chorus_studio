@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+
 use gl;
 use glutin;
 use glutin::GlContext;
@@ -25,7 +27,7 @@ const BLUE: gui::Color = gui::Color {
 
 /// Chorus Studio's main window.
 pub struct MainWindow<'a> {
-    events_loop: glutin::EventsLoop,
+    events_loop: RefCell<glutin::EventsLoop>,
     gl_window: glutin::GlWindow,
     start_time: Instant,
     pub on_close: Event<'a>,
@@ -50,7 +52,7 @@ impl<'a> MainWindow<'a> {
         }
 
         Ok(MainWindow {
-            events_loop,
+            events_loop: RefCell::new(events_loop),
             gl_window,
             start_time: Instant::now(),
             on_close: Event::new(),
@@ -58,13 +60,18 @@ impl<'a> MainWindow<'a> {
     }
 
     /// Update and draw the window for one frame.
-    pub fn update_draw(&mut self, view: &mut gui::View, context: &nanovg::Context) {
-        let gl_window = &self.gl_window;
-        let on_close = &self.on_close;
-        self.events_loop.poll_events(|event| match event {
+    pub fn update_draw(&self, view: &mut gui::View, context: &nanovg::Context) {
+        self.events_loop.borrow_mut().poll_events(|event| match event {
            glutin::Event::WindowEvent { event, .. } => match event {
-               glutin::WindowEvent::Closed => on_close.invoke(),
-               glutin::WindowEvent::Resized(w, h) => gl_window.resize(w, h),
+               glutin::WindowEvent::Closed => self.on_close.invoke(),
+               glutin::WindowEvent::Resized(w, h) => self.gl_window.resize(w, h),
+               glutin::WindowEvent::KeyboardInput {input, ..} if input.state == glutin::ElementState::Released => {
+                   if let Some(kc) = input.virtual_keycode {
+                       if kc == glutin::VirtualKeyCode::Escape {
+                           self.on_close.invoke();
+                       }
+                   }
+               }
                _ => {}
            },
             _ => {}

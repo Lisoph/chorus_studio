@@ -10,6 +10,8 @@ mod event;
 
 use std::cell::Cell;
 
+use indextree as it;
+
 use gui::{View, SpaceDivBuilder, DivUnit, DivAlignment, Color};
 use gui::main_window::MainWindow;
 use gui::widgets;
@@ -20,70 +22,91 @@ fn main() {
     main_window.on_close.add_handler(|| running.set(false));
 
     let nvg = nanovg::ContextBuilder::new().stencil_strokes().build().expect("Failed to create NanoVG context!");
-    let image = nanovg::Image::new(&nvg).build_from_file("testimg.png").expect("Failed to load image!");
-    let font = nanovg::Font::from_file(&nvg, "testfont", "testfont.ttf").expect("Failed to load font!");
+    let image = nanovg::Image::new(&nvg).build_from_file("assets/testimg.png").expect("Failed to load image!");
+    let font_arial = nanovg::Font::from_file(&nvg, "testfont", "assets/arial.ttf").expect("Failed to load font!");
+    let font_moderno = nanovg::Font::from_file(&nvg, "modern", "assets/moderno.ttf").expect("Modernism.ttf");
 
-    let mut main_screen = main_screen(image, font);
+    let mut main_screen = MainScreen::new(font_moderno, font_arial);
 
     while running.get() {
-        main_window.update_draw(&mut main_screen, &nvg);
+        main_screen.update();
+        main_window.update_draw(&mut main_screen.view, &nvg);
     }
 }
 
-fn main_screen<'a>(image: nanovg::Image<'a>, font: nanovg::Font<'a>) -> View<'a> {
-    let mut view = View::without_bbox();
+struct MainScreen<'a> {
+    view: View<'a>,
+    header: it::NodeId,
+    header_title: it::NodeId,
+    body: it::NodeId,
+    chat: it::NodeId,
+    ticks: u64,
+    messages: Vec<it::NodeId>,
+    chat_font: nanovg::Font<'a>,
+}
 
-    // Header (logo)
-    let header = view.add_div(None,
-                              SpaceDivBuilder::new()
-                                  .width(DivUnit::Relative(1.0))
-                                  .height(DivUnit::Pixels(150))
-                                  .hori_align(DivAlignment::Center)
-                                  .build(),
-    );
-    view.add_div(Some(header),
-                 SpaceDivBuilder::new()
-                     .width(DivUnit::Relative(1.0))
-                     .min_width(DivUnit::Pixels(640))
-                     .max_width(DivUnit::Pixels(1100))
-                     .height(DivUnit::Pixels(150))
-                     .widget(Box::new(widgets::Image::new(image)))
-                     .build(),
-    );
+impl<'a> MainScreen<'a> {
+    fn new(title_font: nanovg::Font<'a>, chat_font: nanovg::Font<'a>) -> Self {
+        let mut view = View::without_bbox();
+        let header = view.add_div(None,
+            SpaceDivBuilder::new()
+                .width(DivUnit::Relative(1.0))
+                .height(DivUnit::Pixels(40))
+                .background_color(Color::rgba(0.0, 1.0, 0.0, 0.2))
+                .build(),
+        );
 
-    let body = view.add_div(None,
-                            SpaceDivBuilder::new()
-                                .horizontal()
-                                .width(DivUnit::Relative(1.0))
-                                .height(DivUnit::Relative(0.5))
-                                .vert_align(DivAlignment::Center)
-                                .build(),
-    );
+        let header_title = view.add_div(Some(header),
+            SpaceDivBuilder::new()
+                .width(DivUnit::Relative(0.25))
+                .height(DivUnit::Relative(1.0))
+                .min_width(DivUnit::Pixels(200))
+                .widget(Box::new(widgets::Label::new(title_font, Color::white(), 32.0, "Chorus Studio")))
+                .build(),
+        );
 
-    view.add_div(Some(body),
-                 SpaceDivBuilder::new()
-                     .width(DivUnit::Relative(0.5))
-                     .height(DivUnit::Relative(1.0))
-                     .widget(Box::new(widgets::Label::new(
-                         font,
-                         Color::white(),
-                         24.0,
-                         "Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet. Lorem ipsum dolor sit amet, consetetur sadipscing elitr, sed diam nonumy eirmod tempor invidunt ut labore et dolore magna aliquyam erat, sed diam voluptua. At vero eos et accusam et justo duo dolores et ea rebum. Stet clita kasd gubergren, no sea takimata sanctus est Lorem ipsum dolor sit amet.\n\nこのテキストはGoogle翻訳で翻訳されているため、おそらくあまり意味をなさないでしょう。\n\n这个文本可能没有什么意义，因为它是用Google翻译翻译的。",
-                     )))
-                     .build(),
-    );
-    view.add_div(Some(body),
-                 SpaceDivBuilder::new()
-                     .width(DivUnit::Relative(0.3))
-                     .height(DivUnit::Pixels(45))
-                     .widget(Box::new(widgets::Label::new(
-                         font,
-                         Color::red(),
-                         24.0,
-                         "Hi! I'm a multi-\nline Text and I'm overflowing. Oh noes!",
-                     )))
-                     .build(),
-    );
+        let body = view.add_div(None,
+            SpaceDivBuilder::new()
+                .width(DivUnit::Relative(1.0))
+                .height(DivUnit::Calc(Box::new(|data| data.remaining)))
+                .horizontal()
+                .build(),
+        );
 
-    view
+        let chat = view.add_div(Some(body),
+            SpaceDivBuilder::new()
+                .width(DivUnit::Relative(0.25))
+                .height(DivUnit::Relative(1.0))
+                .min_width(DivUnit::Pixels(100))
+                .vertical()
+                .vert_align(DivAlignment::Min)
+                .background_color(Color::rgba(0.4, 0.2, 0.0, 1.0))
+                .build(),
+        );
+
+        Self {
+            view,
+            header,
+            header_title,
+            body,
+            chat,
+            ticks: 0,
+            messages: Vec::new(),
+            chat_font,
+        }
+    }
+
+    fn update(&mut self) {
+        self.ticks += 1;
+        if self.ticks % 300 == 0 {
+            self.view.add_div(Some(self.chat),
+                SpaceDivBuilder::new()
+                    .width(DivUnit::Relative(1.0))
+                    .height(DivUnit::Pixels(32))
+                    .widget(Box::new(widgets::Label::new(self.chat_font, Color::white(), 20.0, "fake message")))
+                    .background_color(Color::rgba(0.7, 0.2, 0.1, 1.0))
+                    .build()
+            );
+        }
+    }
 }

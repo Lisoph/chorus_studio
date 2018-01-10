@@ -1,5 +1,6 @@
 pub mod main_window;
 pub mod widgets;
+
 use self::widgets::Widget;
 
 use std::cmp::{max, min};
@@ -78,9 +79,9 @@ impl<'a> View<'a> {
     pub fn new(bbox: Bbox) -> Self {
         let mut arena = it::Arena::new();
         let root_div = arena.new_node(SpaceDiv::full()
-                .vertical()
-                .vert_align(DivAlignment::Min)
-                .build());
+            .vertical()
+            .vert_align(DivAlignment::Min)
+            .build());
         Self {
             bbox,
             arena,
@@ -129,17 +130,17 @@ impl<'a> View<'a> {
     }
 
     fn draw_div(&self, div: &SpaceDiv, div_bbox: Bbox, frame: &nanovg::Frame) {
-        // Useful debugging code for analyzing the bboxes.
-//        frame.path(|path| {
-//            let origin = (div_bbox.min.x as f32, div_bbox.min.y as f32);
-//            let size = (div_bbox.size().x as f32, div_bbox.size().y as f32);
-//            path.rect(origin, size);
-//            path.stroke(nanovg::StrokeStyle {
-//                coloring_style: nanovg::ColoringStyle::Color(Color::white().into()),
-//                width: 2.0,
-//                .. Default::default()
-//            });
-//        }, Default::default());
+        if let Some(color) = div.background_color {
+            frame.path(|path| {
+                let origin = (div_bbox.min.x as f32, div_bbox.min.y as f32);
+                let size = (div_bbox.size().x as f32, div_bbox.size().y as f32);
+                path.rect(origin, size);
+                path.fill(nanovg::FillStyle {
+                    coloring_style: nanovg::ColoringStyle::Color(color.into()),
+                    ..Default::default()
+                });
+            }, Default::default());
+        }
 
         if let Some(ref widget) = div.widget {
             widget.draw(div_bbox, frame);
@@ -210,6 +211,7 @@ pub struct SpaceDiv<'a> {
     hori_align: DivAlignment,
     vert_align: DivAlignment,
     widget: Option<Box<Widget + 'a>>,
+    background_color: Option<Color>,
 }
 
 impl<'a> SpaceDiv<'a> {
@@ -323,6 +325,7 @@ impl<'a> Default for SpaceDiv<'a> {
             hori_align: DivAlignment::Min,
             vert_align: DivAlignment::Min,
             widget: None,
+            background_color: None,
         }
     }
 }
@@ -331,8 +334,8 @@ impl<'a> Default for SpaceDiv<'a> {
 /// parent or containing bounding box.
 /// This is essentially the layout engine.
 pub struct SpaceDivIter<'a, I>
-where
-    I: Iterator<Item = it::NodeId>,
+    where
+        I: Iterator<Item=it::NodeId>,
 {
     /// The arena to which the NodeIds refer.
     arena: &'a it::Arena<SpaceDiv<'a>>,
@@ -355,8 +358,8 @@ where
 }
 
 impl<'a, I> SpaceDivIter<'a, I>
-where
-    I: Iterator<Item = it::NodeId>,
+    where
+        I: Iterator<Item=it::NodeId>,
 {
     fn new(
         arena: &'a it::Arena<SpaceDiv<'a>>,
@@ -382,8 +385,8 @@ where
 }
 
 impl<'a, I> Iterator for SpaceDivIter<'a, I>
-where
-    I: Iterator<Item = it::NodeId>,
+    where
+        I: Iterator<Item=it::NodeId>,
 {
     type Item = (it::NodeId, Bbox);
 
@@ -412,10 +415,10 @@ where
 
             let origin = match self.dir {
                 DivDirection::Horizontal => {
-                    Point::new(self.cur + offset_x, self.bbox.min.y + offset_y)
+                    Point::new(self.bbox.min.x + self.cur + offset_x, self.bbox.min.y + offset_y)
                 }
                 DivDirection::Vertical => {
-                    Point::new(self.bbox.min.x + offset_x, self.cur + offset_y)
+                    Point::new(self.bbox.min.x + offset_x, self.bbox.min.y + self.cur + offset_y)
                 }
             };
             self.previous_end = origin + size;
@@ -507,6 +510,11 @@ impl<'a> SpaceDivBuilder<'a> {
 
     pub fn widget(mut self, widget: Box<Widget + 'a>) -> Self {
         self.current.widget = Some(widget);
+        self
+    }
+
+    pub fn background_color(mut self, color: Color) -> Self {
+        self.current.background_color = Some(color);
         self
     }
 
