@@ -160,9 +160,9 @@ impl<'a> View<'a> {
     }
 
     fn build_cache(&self) {
-        let mut vec = Vec::with_capacity(64);
+        let mut vec = self.cache.borrow_mut();
+        let mut vec = vec.get_or_insert_with(|| Vec::with_capacity(64));
         self.visit_divs(self.root_div, self.bbox, &mut |div, bbox| vec.push((div, bbox)));
-        *self.cache.borrow_mut() = Some(vec);
     }
 
     fn divs(&self) -> Ref<Option<Vec<(it::NodeId, Bbox)>>> {
