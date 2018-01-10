@@ -14,7 +14,7 @@ use indextree as it;
 
 use gui::{View, SpaceDivBuilder, DivUnit, DivAlignment, DivOverflow, Color};
 use gui::main_window::MainWindow;
-use gui::widgets;
+use gui::widget;
 
 fn main() {
     let running = Cell::new(true);
@@ -61,7 +61,7 @@ impl<'a> MainScreen<'a> {
                 .width(DivUnit::Relative(0.25))
                 .height(DivUnit::Relative(1.0))
                 .min_width(DivUnit::Pixels(200))
-                .widget(Box::new(widgets::Label::new(title_font, Color::white(), 32.0, "Chorus Studio")))
+                .widget(Box::new(widget::Label::new(title_font, Color::white(), 32.0, "Chorus Studio")))
                 .build(),
         );
 
@@ -104,7 +104,7 @@ impl<'a> MainScreen<'a> {
                 SpaceDivBuilder::new()
                     .width(DivUnit::Relative(1.0))
                     .height(DivUnit::Pixels(32))
-                    .widget(Box::new(widgets::Label::new(self.chat_font, Color::white(), 20.0, "fake message")))
+                    .widget(Box::new(widget::Label::new(self.chat_font, Color::white(), 20.0, "fake message")))
                     .background_color(Color::rgba(0.7, 0.2, 0.1, 1.0))
                     .build()
             );

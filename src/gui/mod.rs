@@ -1,7 +1,7 @@
 pub mod main_window;
-pub mod widgets;
+pub mod widget;
 
-use self::widgets::Widget;
+use self::widget::Widget;
 
 use std::cmp::{max, min};
 use std::cell::{RefCell, Ref};
