@@ -2,7 +2,7 @@ use gui::{Bbox, Color};
 use nanovg;
 
 pub trait Widget {
-    fn draw(&self, bbox: Bbox, frame: &nanovg::Frame);
+    fn draw(&self, bbox: Bbox, clip: Bbox, frame: &nanovg::Frame);
     fn update(&mut self, bbox: Bbox);
     // fn handle_window_event(&mut self, event: &glutin::WindowEvent);
 }
@@ -18,7 +18,7 @@ impl<'a> Image<'a> {
 }
 
 impl<'a> Widget for Image<'a> {
-    fn draw(&self, bbox: Bbox, frame: &nanovg::Frame) {
+    fn draw(&self, bbox: Bbox, clip: Bbox, frame: &nanovg::Frame) {
         frame.path(|path| {
             let size = bbox.size();
             let origin = (bbox.min.x as f32, bbox.min.y as f32);
@@ -28,7 +28,15 @@ impl<'a> Widget for Image<'a> {
                 coloring_style: nanovg::ColoringStyle::Paint(nanovg::Paint::with_image_pattern(frame.context(), &self.image, origin, size, 0.0, 1.0)),
                 ..Default::default()
             })
-        }, Default::default());
+        }, nanovg::PathOptions {
+            scissor: Some(nanovg::Scissor::Rect {
+                x: clip.min.x as f32,
+                y: clip.min.y as f32,
+                width: clip.size().x as f32,
+                height: clip.size().x as f32,
+            }),
+            .. Default::default()
+        });
     }
 
     fn update(&mut self, bbox: Bbox) {}
@@ -53,18 +61,18 @@ impl<'a> Label<'a> {
 }
 
 impl<'a> Widget for Label<'a> {
-    fn draw(&self, bbox: Bbox, frame: &nanovg::Frame) {
-        let bbox_size = bbox.size();
+    fn draw(&self, bbox: Bbox, clip: Bbox, frame: &nanovg::Frame) {
+        let clip = bbox.overlapping(clip).unwrap_or(clip);
         frame.context().text_box(self.font, (bbox.min.x as f32, bbox.min.y as f32),
             self.text, nanovg::TextOptions {
                 size: self.size,
                 color: self.color.into(),
-                line_max_width: bbox_size.x as f32,
+                line_max_width: bbox.size().x as f32,
                 scissor: Some(nanovg::Scissor::Rect {
-                    x: bbox.min.x as f32,
-                    y: bbox.min.y as f32,
-                    width: bbox_size.x as f32,
-                    height: bbox_size.y as f32,
+                    x: clip.min.x as f32,
+                    y: clip.min.y as f32,
+                    width: clip.size().x as f32,
+                    height: clip.size().y as f32,
                 }),
                 ..Default::default()
             });

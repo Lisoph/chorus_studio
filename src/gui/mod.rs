@@ -17,6 +17,10 @@ pub fn point_min(a: Point, b: Point) -> Point {
     Point::new(min(a.x, b.x), min(a.y, b.y))
 }
 
+pub fn point_max(a: Point, b: Point) -> Point {
+    Point::new(max(a.x, b.x), max(a.y, b.y))
+}
+
 #[derive(Clone, Copy)]
 pub struct Color {
     pub r: f32,
@@ -69,6 +73,26 @@ impl Bbox {
     pub fn size(&self) -> Size {
         self.max - self.min
     }
+
+    /// Check whether this bounding box partially or completely contains the `other` bounding box.
+    pub fn contains_bbox(&self, other: Bbox) -> bool {
+        let between = |x, min, max| x >= min && x <= max;
+        let x = between(other.min.x, self.min.x, self.max.x)
+            || between(other.max.x, self.min.x, self.max.x);
+        let y = between(other.min.y, self.min.y, self.max.y)
+            || between(other.max.y, self.min.y, self.max.y);
+        x && y
+    }
+
+    pub fn overlapping(&self, other: Bbox) -> Option<Bbox> {
+        if self.contains_bbox(other) {
+            let min = point_max(self.min, other.min);
+            let max = point_min(self.max, other.max);
+            Some(Bbox::new(min, max))
+        } else {
+            None
+        }
+    }
 }
 
 pub struct View<'a> {
@@ -76,7 +100,7 @@ pub struct View<'a> {
     arena: it::Arena<SpaceDiv<'a>>,
     root_div: it::NodeId,
     children: Vec<it::NodeId>,
-    cache: RefCell<Option<Vec<(it::NodeId, Bbox)>>>,
+    cache: RefCell<Option<Vec<(it::NodeId, ComputedDivVisibility)>>>,
 }
 
 impl<'a> View<'a> {
@@ -125,19 +149,39 @@ impl<'a> View<'a> {
         &self.arena[self.root_div].data
     }
 
+    /// Draw the entire frame.
     pub fn draw(&self, frame: &nanovg::Frame) {
         if let Some(ref divs) = *self.divs() {
-            for &(div, bbox) in divs.iter() {
-                self.draw_div(&self.arena[div].data, bbox, frame);
+            for &(div, vis) in divs.iter() {
+                self.draw_div(&self.arena[div].data, vis, frame);
             }
         }
     }
 
-    fn draw_div(&self, div: &SpaceDiv, div_bbox: Bbox, frame: &nanovg::Frame) {
+    /// Draw a single div.
+    fn draw_div(&self, div: &SpaceDiv, div_visibility: ComputedDivVisibility, frame: &nanovg::Frame) {
+        let (div_bbox, x, y) = match div_visibility {
+            ComputedDivVisibility::Invisible => return,
+            ComputedDivVisibility::Visible { bbox, x, y } => (bbox, x, y),
+        };
+
+        let clip = {
+            let mut clip = div_bbox;
+            if let AxisOverflowBehaviour::Clip { min: min_val, max: max_val } = x {
+                clip.min.x = max(clip.min.x, min_val);
+                clip.max.x = max(clip.max.x, max_val);
+            }
+            if let AxisOverflowBehaviour::Clip { min: min_val, max: max_val } = y {
+                clip.min.y = max(clip.min.y, min_val);
+                clip.max.y = max(clip.max.y, max_val);
+            }
+            clip
+        };
+
         if let Some(color) = div.background_color {
             frame.path(|path| {
-                let origin = (div_bbox.min.x as f32, div_bbox.min.y as f32);
-                let size = (div_bbox.size().x as f32, div_bbox.size().y as f32);
+                let origin = (clip.min.x as f32, clip.min.y as f32);
+                let size = (clip.size().x as f32, clip.size().y as f32);
                 path.rect(origin, size);
                 path.fill(nanovg::FillStyle {
                     coloring_style: nanovg::ColoringStyle::Color(color.into()),
@@ -147,29 +191,39 @@ impl<'a> View<'a> {
         }
 
         if let Some(ref widget) = div.widget {
-            widget.draw(div_bbox, frame);
+            widget.draw(div_bbox, clip, frame);
         }
     }
 
     /// Recursively visit all space divs of this view.
-    fn visit_divs<F: FnMut(it::NodeId, Bbox)>(&self, id: it::NodeId, bbox: Bbox, visitor: &mut F) {
-        visitor(id, bbox);
-        for (c, bbox) in self.arena[id].data.children(&self.arena, id, bbox) {
+    fn visit_divs<F>(&self, id: it::NodeId, bbox: Bbox, visitor: &mut F)
+        where F: FnMut(it::NodeId, ComputedDivVisibility)
+    {
+        visitor(id, ComputedDivVisibility::Visible {
+            bbox,
+            x: AxisOverflowBehaviour::Overflow,
+            y: AxisOverflowBehaviour::Overflow,
+        });
+
+        let visible_children = self.arena[id].data.children(&self.arena, id, bbox)
+            .filter_map(|(c, vis)| match vis {
+                ComputedDivVisibility::Visible { bbox, .. } => Some((c, bbox)),
+                ComputedDivVisibility::Invisible => None,
+            });
+
+        for (c, bbox) in visible_children {
             self.visit_divs(c, bbox, visitor);
         }
     }
 
-    fn build_cache(&self) {
-        let mut vec = self.cache.borrow_mut();
-        let mut vec = vec.get_or_insert_with(|| Vec::with_capacity(64));
-        vec.clear();
-        self.visit_divs(self.root_div, self.bbox, &mut |div, bbox| vec.push((div, bbox)));
-    }
-
-    fn divs(&self) -> Ref<Option<Vec<(it::NodeId, Bbox)>>> {
+    fn divs(&self) -> Ref<Option<Vec<(it::NodeId, ComputedDivVisibility)>>> {
         let is_none = { self.cache.borrow().is_none() };
         if is_none {
-            self.build_cache();
+            // Build the cache
+            let mut vec = self.cache.borrow_mut();
+            let mut vec = vec.get_or_insert_with(|| Vec::with_capacity(64));
+            vec.clear();
+            self.visit_divs(self.root_div, self.bbox, &mut |div, vis| vec.push((div, vis)));
         }
         self.cache.borrow()
     }
@@ -215,6 +269,26 @@ pub enum DivOverflow {
     Scroll,
 }
 
+#[derive(Clone, Copy)]
+enum ComputedDivVisibility {
+    Visible {
+        bbox: Bbox,
+        x: AxisOverflowBehaviour,
+        y: AxisOverflowBehaviour,
+    },
+    Invisible,
+}
+
+#[derive(Clone, Copy)]
+enum AxisOverflowBehaviour {
+    Clip {
+        min: i32,
+        max: i32,
+    },
+    Scroll(i32),
+    Overflow,
+}
+
 pub struct SpaceDiv<'a> {
     width: DivUnit,
     height: DivUnit,
@@ -253,6 +327,8 @@ impl<'a> SpaceDiv<'a> {
             self.layout_dir,
             self.hori_align,
             self.vert_align,
+            self.hori_overflow,
+            self.vert_overflow,
         )
     }
 
@@ -352,7 +428,7 @@ impl<'a> Default for SpaceDiv<'a> {
 /// Iterator that computes the positions and sizes of space divisions based on the
 /// parent or containing bounding box.
 /// This is essentially the layout engine.
-pub struct SpaceDivIter<'a, I>
+struct SpaceDivIter<'a, I>
     where
         I: Iterator<Item=it::NodeId>,
 {
@@ -370,6 +446,10 @@ pub struct SpaceDivIter<'a, I>
     hori_align: DivAlignment,
     /// The vertical alignment.
     vert_align: DivAlignment,
+    /// The horizontal overflow.
+    hori_overflow: DivOverflow,
+    /// The vertical overflow
+    vert_overflow: DivOverflow,
     /// The current horizontal or vertical advance.
     cur: i32,
     /// The bottom-right coordinate of the last / previous division's bounding box.
@@ -388,6 +468,8 @@ impl<'a, I> SpaceDivIter<'a, I>
         dir: DivDirection,
         hori_align: DivAlignment,
         vert_align: DivAlignment,
+        hori_overflow: DivOverflow,
+        vert_overflow: DivOverflow,
     ) -> Self {
         Self {
             arena,
@@ -397,9 +479,39 @@ impl<'a, I> SpaceDivIter<'a, I>
             dir,
             hori_align,
             vert_align,
+            hori_overflow,
+            vert_overflow,
             cur: 0,
             previous_end: Point::new(0, 0),
         }
+    }
+
+    /// Compute visibility, overflow and scroll information for a div bbox.
+    fn div_visibility(&self, div_bbox: Bbox) -> ComputedDivVisibility {
+        if (self.hori_overflow == DivOverflow::Clip || self.vert_overflow == DivOverflow::Clip)
+            && !self.bbox.contains_bbox(div_bbox) {
+            return ComputedDivVisibility::Invisible;
+        }
+
+        let do_axis = |overflow: DivOverflow, (bbox_min, bbox_max): (i32, i32), (self_bbox_min, self_bbox_max): (i32, i32)| -> AxisOverflowBehaviour {
+            match overflow {
+                DivOverflow::Clip => {
+                    let min_val = max(bbox_min, self_bbox_min);
+                    let max_val = min(bbox_max, self_bbox_max);
+                    AxisOverflowBehaviour::Clip { min: min_val, max: max_val }
+                }
+                DivOverflow::Scroll => {
+                    let size = bbox_max - bbox_min;
+                    let self_size = self_bbox_max - self_bbox_min;
+                    AxisOverflowBehaviour::Scroll(max(size - self_size, 0))
+                }
+                DivOverflow::Overflow => AxisOverflowBehaviour::Overflow,
+            }
+        };
+
+        let x = do_axis(self.hori_overflow, (div_bbox.min.x, div_bbox.max.x), (self.bbox.min.x, self.bbox.max.x));
+        let y = do_axis(self.vert_overflow, (div_bbox.min.y, div_bbox.max.y), (self.bbox.min.y, self.bbox.max.y));
+        ComputedDivVisibility::Visible { bbox: div_bbox, x, y }
     }
 }
 
@@ -407,7 +519,7 @@ impl<'a, I> Iterator for SpaceDivIter<'a, I>
     where
         I: Iterator<Item=it::NodeId>,
 {
-    type Item = (it::NodeId, Bbox);
+    type Item = (it::NodeId, ComputedDivVisibility);
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(div_id) = self.space_divs.next() {
@@ -442,7 +554,9 @@ impl<'a, I> Iterator for SpaceDivIter<'a, I>
             };
             self.previous_end = origin + size;
 
+            // Div bbox, clip bbox and scroll amounts.
             let div_bbox = Bbox::with_size(origin, size);
+            let visibility = self.div_visibility(div_bbox);
 
             // Compute directions and advance.
             let dir_x = match self.hori_align {
@@ -459,7 +573,7 @@ impl<'a, I> Iterator for SpaceDivIter<'a, I>
                 DivDirection::Vertical => size.y * dir_y,
             };
 
-            Some((div_id, div_bbox))
+            Some((div_id, visibility))
         } else {
             None
         }
@@ -549,5 +663,23 @@ impl<'a> SpaceDivBuilder<'a> {
 
     pub fn build(self) -> SpaceDiv<'a> {
         self.current
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_bbox() {
+        let b1 = Bbox::new(Point::new(0, 0), Point::new(10, 10));
+        let b2 = Bbox::new(Point::new(2, 2), Point::new(4, 4));
+        let b3 = Bbox::new(Point::new(20, 20), Point::new(25, 25));
+
+        assert!(b1.contains_bbox(b2));
+        assert_eq!(b1.overlapping(b2), Some(Bbox::new(Point::new(2, 2), Point::new(4, 4))));
+
+        assert!(!b1.contains_bbox(b3));
+        assert_eq!(b1.overlapping(b3), None);
     }
 }
