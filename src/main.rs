@@ -12,7 +12,8 @@ use std::cell::Cell;
 
 use indextree as it;
 
-use gui::{View, SpaceDivBuilder, DivUnit, DivAlignment, DivOverflow, Color};
+use gui::{View, Color};
+use gui::div;
 use gui::main_window::MainWindow;
 use gui::widget;
 
@@ -49,39 +50,39 @@ impl<'a> MainScreen<'a> {
     fn new(title_font: nanovg::Font<'a>, chat_font: nanovg::Font<'a>) -> Self {
         let mut view = View::without_bbox();
         let header = view.add_div(None,
-            SpaceDivBuilder::new()
-                .width(DivUnit::Relative(1.0))
-                .height(DivUnit::Pixels(40))
+            div::SpaceDivBuilder::new()
+                .width(div::Unit::Relative(1.0))
+                .height(div::Unit::Pixels(40))
                 .background_color(Color::rgba(0.0, 1.0, 0.0, 0.2))
                 .build(),
         );
 
         let header_title = view.add_div(Some(header),
-            SpaceDivBuilder::new()
-                .width(DivUnit::Relative(0.25))
-                .height(DivUnit::Relative(1.0))
-                .min_width(DivUnit::Pixels(250))
+            div::SpaceDivBuilder::new()
+                .width(div::Unit::Relative(0.25))
+                .height(div::Unit::Relative(1.0))
+                .min_width(div::Unit::Pixels(250))
                 .widget(Box::new(widget::Label::new(title_font, Color::white(), 32.0, "Chorus Studio")))
                 .build(),
         );
 
         let body = view.add_div(None,
-            SpaceDivBuilder::new()
-                .width(DivUnit::Relative(1.0))
-                .height(DivUnit::Calc(Box::new(|data| data.remaining - 100)))
+            div::SpaceDivBuilder::new()
+                .width(div::Unit::Relative(1.0))
+                .height(div::Unit::Calc(Box::new(|data| data.remaining - 100)))
                 .horizontal()
                 .build(),
         );
 
         let chat = view.add_div(Some(body),
-            SpaceDivBuilder::new()
-                .width(DivUnit::Relative(0.25))
-                .height(DivUnit::Relative(1.0))
-                .min_width(DivUnit::Pixels(100))
+            div::SpaceDivBuilder::new()
+                .width(div::Unit::Relative(0.25))
+                .height(div::Unit::Relative(1.0))
+                .min_width(div::Unit::Pixels(100))
                 .vertical()
-                .vert_align(DivAlignment::Min)
-                .hori_overflow(DivOverflow::Clip)
-                .vert_overflow(DivOverflow::Clip)
+                .vert_align(div::Alignment::Min)
+                .hori_overflow(div::Overflow::Clip)
+                .vert_overflow(div::Overflow::Clip)
                 .background_color(Color::rgba(0.4, 0.2, 0.0, 1.0))
                 .build(),
         );
@@ -102,9 +103,9 @@ impl<'a> MainScreen<'a> {
         self.ticks += 1;
         if self.ticks % 100 == 0 {
             self.view.add_div(Some(self.chat),
-                SpaceDivBuilder::new()
-                    .width(DivUnit::Relative(1.0))
-                    .height(DivUnit::Pixels(32))
+                div::SpaceDivBuilder::new()
+                    .width(div::Unit::Relative(1.0))
+                    .height(div::Unit::Pixels(32))
                     .widget(Box::new(widget::Label::new(self.chat_font, Color::white(), 20.0, "fake chat message")))
                     .background_color(Color::rgba(0.7, 0.2, 0.1, 1.0))
                     .build()
