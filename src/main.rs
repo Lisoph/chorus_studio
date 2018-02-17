@@ -80,6 +80,7 @@ impl<'a> MainScreen<'a> {
                 .min_width(DivUnit::Pixels(100))
                 .vertical()
                 .vert_align(DivAlignment::Min)
+                .hori_overflow(DivOverflow::Clip)
                 .vert_overflow(DivOverflow::Clip)
                 .background_color(Color::rgba(0.4, 0.2, 0.0, 1.0))
                 .build(),
@@ -104,7 +105,7 @@ impl<'a> MainScreen<'a> {
                 SpaceDivBuilder::new()
                     .width(DivUnit::Relative(1.0))
                     .height(DivUnit::Pixels(32))
-                    .widget(Box::new(widget::Label::new(self.chat_font, Color::white(), 20.0, "fake message")))
+                    .widget(Box::new(widget::Label::new(self.chat_font, Color::white(), 20.0, "fake chat message")))
                     .background_color(Color::rgba(0.7, 0.2, 0.1, 1.0))
                     .build()
             );

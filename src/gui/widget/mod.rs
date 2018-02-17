@@ -2,7 +2,13 @@ use gui::{Bbox, Color};
 use nanovg;
 
 pub trait Widget {
+    /// Draw the widget in its current state on the screen.
+    /// `bbox` is the size the div ideally would like to have. However, since divs can overflow
+    /// and be clipped, the actual bounding box in which the widget can be drawn might be smaller
+    /// than the div's `bbox`. The parameter `clip` specifies this actual bounding box which
+    /// the widget must not exceed.
     fn draw(&self, bbox: Bbox, clip: Bbox, frame: &nanovg::Frame);
+    /// Update the widgets internal state.
     fn update(&mut self, bbox: Bbox);
     // fn handle_window_event(&mut self, event: &glutin::WindowEvent);
 }
@@ -29,13 +35,8 @@ impl<'a> Widget for Image<'a> {
                 ..Default::default()
             })
         }, nanovg::PathOptions {
-            scissor: Some(nanovg::Scissor::Rect {
-                x: clip.min.x as f32,
-                y: clip.min.y as f32,
-                width: clip.size().x as f32,
-                height: clip.size().x as f32,
-            }),
-            .. Default::default()
+            scissor: Some(clip.into()),
+            ..Default::default()
         });
     }
 
@@ -62,18 +63,12 @@ impl<'a> Label<'a> {
 
 impl<'a> Widget for Label<'a> {
     fn draw(&self, bbox: Bbox, clip: Bbox, frame: &nanovg::Frame) {
-        let clip = bbox.overlapping(clip).unwrap_or(clip);
         frame.context().text_box(self.font, (bbox.min.x as f32, bbox.min.y as f32),
             self.text, nanovg::TextOptions {
                 size: self.size,
                 color: self.color.into(),
                 line_max_width: bbox.size().x as f32,
-                scissor: Some(nanovg::Scissor::Rect {
-                    x: clip.min.x as f32,
-                    y: clip.min.y as f32,
-                    width: clip.size().x as f32,
-                    height: clip.size().y as f32,
-                }),
+                scissor: Some(clip.into()),
                 ..Default::default()
             });
     }
