@@ -5,8 +5,8 @@ use gui::div;
 /// parent or containing bounding box.
 /// This is essentially the layout engine.
 pub struct SpaceDivIter<'a, I>
-    where
-        I: Iterator<Item=it::NodeId>,
+where
+    I: Iterator<Item = it::NodeId>,
 {
     /// The arena to which the NodeIds refer.
     arena: &'a it::Arena<div::SpaceDiv<'a>>,
@@ -33,8 +33,8 @@ pub struct SpaceDivIter<'a, I>
 }
 
 impl<'a, I> SpaceDivIter<'a, I>
-    where
-        I: Iterator<Item=it::NodeId>,
+where
+    I: Iterator<Item = it::NodeId>,
 {
     pub fn new(
         arena: &'a it::Arena<div::SpaceDiv<'a>>,
@@ -65,16 +65,23 @@ impl<'a, I> SpaceDivIter<'a, I>
     /// Compute visibility, overflow and scroll information for a div bbox.
     fn div_visibility(&self, div_bbox: Bbox) -> div::ComputedVisibility {
         if (self.hori_overflow == div::Overflow::Clip || self.vert_overflow == div::Overflow::Clip)
-            && !self.bbox.contains_bbox(div_bbox) {
+            && !self.bbox.contains_bbox(div_bbox)
+        {
             return div::ComputedVisibility::Invisible;
         }
 
-        let do_axis = |overflow: div::Overflow, (bbox_min, bbox_max): (i32, i32), (parent_bbox_min, parent_bbox_max): (i32, i32)| -> div::AxisOverflowBehaviour {
+        let do_axis = |overflow: div::Overflow,
+                       (bbox_min, bbox_max): (i32, i32),
+                       (parent_bbox_min, parent_bbox_max): (i32, i32)|
+         -> div::AxisOverflowBehaviour {
             match overflow {
                 div::Overflow::Clip => {
                     let min_val = max(bbox_min, parent_bbox_min);
                     let max_val = min(bbox_max, parent_bbox_max);
-                    div::AxisOverflowBehaviour::Clip { min: min_val, max: max_val }
+                    div::AxisOverflowBehaviour::Clip {
+                        min: min_val,
+                        max: max_val,
+                    }
                 }
                 div::Overflow::Scroll => {
                     let size = bbox_max - bbox_min;
@@ -85,15 +92,27 @@ impl<'a, I> SpaceDivIter<'a, I>
             }
         };
 
-        let x = do_axis(self.hori_overflow, (div_bbox.min.x, div_bbox.max.x), (self.bbox.min.x, self.bbox.max.x));
-        let y = do_axis(self.vert_overflow, (div_bbox.min.y, div_bbox.max.y), (self.bbox.min.y, self.bbox.max.y));
-        div::ComputedVisibility::Visible { bbox: div_bbox, x, y }
+        let x = do_axis(
+            self.hori_overflow,
+            (div_bbox.min.x, div_bbox.max.x),
+            (self.bbox.min.x, self.bbox.max.x),
+        );
+        let y = do_axis(
+            self.vert_overflow,
+            (div_bbox.min.y, div_bbox.max.y),
+            (self.bbox.min.y, self.bbox.max.y),
+        );
+        div::ComputedVisibility::Visible {
+            bbox: div_bbox,
+            x,
+            y,
+        }
     }
 }
 
 impl<'a, I> Iterator for SpaceDivIter<'a, I>
-    where
-        I: Iterator<Item=it::NodeId>,
+where
+    I: Iterator<Item = it::NodeId>,
 {
     type Item = (it::NodeId, div::ComputedVisibility);
 
@@ -121,12 +140,14 @@ impl<'a, I> Iterator for SpaceDivIter<'a, I>
             };
 
             let origin = match self.dir {
-                div::Direction::Horizontal => {
-                    Point::new(self.bbox.min.x + self.cur + offset_x, self.bbox.min.y + offset_y)
-                }
-                div::Direction::Vertical => {
-                    Point::new(self.bbox.min.x + offset_x, self.bbox.min.y + self.cur + offset_y)
-                }
+                div::Direction::Horizontal => Point::new(
+                    self.bbox.min.x + self.cur + offset_x,
+                    self.bbox.min.y + offset_y,
+                ),
+                div::Direction::Vertical => Point::new(
+                    self.bbox.min.x + offset_x,
+                    self.bbox.min.y + self.cur + offset_y,
+                ),
             };
             self.previous_end = origin + size;
 

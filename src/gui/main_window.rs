@@ -24,7 +24,6 @@ const BLUE: gui::Color = gui::Color {
     a: 1.0,
 };
 
-
 /// Chorus Studio's main window.
 pub struct MainWindow<'a> {
     events_loop: RefCell<glutin::EventsLoop>,
@@ -61,35 +60,45 @@ impl<'a> MainWindow<'a> {
 
     /// Update and draw the window for one frame.
     pub fn update_draw(&self, view: &mut gui::View, context: &nanovg::Context) {
-        self.events_loop.borrow_mut().poll_events(|event| match event {
-           glutin::Event::WindowEvent { event, .. } => match event {
-               glutin::WindowEvent::Closed => self.on_close.invoke(),
-               glutin::WindowEvent::Resized(w, h) => self.gl_window.resize(w, h),
-               glutin::WindowEvent::KeyboardInput {input, ..} if input.state == glutin::ElementState::Released => {
-                   if let Some(kc) = input.virtual_keycode {
-                       if kc == glutin::VirtualKeyCode::Escape {
-                           self.on_close.invoke();
-                       }
-                   }
-               }
-               _ => {}
-           },
-            _ => {}
-        });
+        self.events_loop
+            .borrow_mut()
+            .poll_events(|event| match event {
+                glutin::Event::WindowEvent { event, .. } => match event {
+                    glutin::WindowEvent::Closed => self.on_close.invoke(),
+                    glutin::WindowEvent::Resized(w, h) => self.gl_window.resize(w, h),
+                    glutin::WindowEvent::KeyboardInput { input, .. }
+                        if input.state == glutin::ElementState::Released =>
+                    {
+                        if let Some(kc) = input.virtual_keycode {
+                            if kc == glutin::VirtualKeyCode::Escape {
+                                self.on_close.invoke();
+                            }
+                        }
+                    }
+                    _ => {}
+                },
+                _ => {}
+            });
 
-        let (w, h) = self.gl_window.get_inner_size().unwrap_or(INITIAL_WINDOW_SIZE);
+        let (w, h) = self.gl_window
+            .get_inner_size()
+            .unwrap_or(INITIAL_WINDOW_SIZE);
         let (w, h) = (w as i32, h as i32);
 
         unsafe {
             let elapsed = self.start_time.elapsed();
             let elapsed = (elapsed.as_secs() as f64 + elapsed.subsec_nanos() as f64 * 1e-9) as f32;
-            let color = nanovg::Color::lerp(RED.into(), BLUE.into(), (elapsed / 2.0).cos() * 0.5 + 0.5);
+            let color =
+                nanovg::Color::lerp(RED.into(), BLUE.into(), (elapsed / 2.0).cos() * 0.5 + 0.5);
             gl::ClearColor(color.red(), color.green(), color.blue(), color.alpha());
             gl::Viewport(0, 0, w, h);
             gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT);
         }
 
-        view.set_bbox(gui::Bbox::with_size(gui::Point::new(0, 0), gui::Point::new(w, h)));
+        view.set_bbox(gui::Bbox::with_size(
+            gui::Point::new(0, 0),
+            gui::Point::new(w, h),
+        ));
         context.frame((w, h), self.gl_window.hidpi_factor(), |frame| {
             view.draw(&frame);
         });

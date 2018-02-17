@@ -25,19 +25,31 @@ impl<'a> Image<'a> {
 
 impl<'a> Widget for Image<'a> {
     fn draw(&self, bbox: Bbox, clip: Bbox, frame: &nanovg::Frame) {
-        frame.path(|path| {
-            let size = bbox.size();
-            let origin = (bbox.min.x as f32, bbox.min.y as f32);
-            let size = (size.x as f32, size.y as f32);
-            path.rect(origin, size);
-            path.fill(nanovg::FillStyle {
-                coloring_style: nanovg::ColoringStyle::Paint(nanovg::Paint::with_image_pattern(frame.context(), &self.image, origin, size, 0.0, 1.0)),
+        frame.path(
+            |path| {
+                let size = bbox.size();
+                let origin = (bbox.min.x as f32, bbox.min.y as f32);
+                let size = (size.x as f32, size.y as f32);
+                path.rect(origin, size);
+                path.fill(nanovg::FillStyle {
+                    coloring_style: nanovg::ColoringStyle::Paint(
+                        nanovg::Paint::with_image_pattern(
+                            frame.context(),
+                            &self.image,
+                            origin,
+                            size,
+                            0.0,
+                            1.0,
+                        ),
+                    ),
+                    ..Default::default()
+                })
+            },
+            nanovg::PathOptions {
+                scissor: Some(clip.into()),
                 ..Default::default()
-            })
-        }, nanovg::PathOptions {
-            scissor: Some(clip.into()),
-            ..Default::default()
-        });
+            },
+        );
     }
 
     fn update(&mut self, bbox: Bbox) {}
@@ -63,14 +75,18 @@ impl<'a> Label<'a> {
 
 impl<'a> Widget for Label<'a> {
     fn draw(&self, bbox: Bbox, clip: Bbox, frame: &nanovg::Frame) {
-        frame.context().text_box(self.font, (bbox.min.x as f32, bbox.min.y as f32),
-            self.text, nanovg::TextOptions {
+        frame.context().text_box(
+            self.font,
+            (bbox.min.x as f32, bbox.min.y as f32),
+            self.text,
+            nanovg::TextOptions {
                 size: self.size,
                 color: self.color.into(),
                 line_max_width: bbox.size().x as f32,
                 scissor: Some(clip.into()),
                 ..Default::default()
-            });
+            },
+        );
     }
 
     fn update(&mut self, bbox: Bbox) {}

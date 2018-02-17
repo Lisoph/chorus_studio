@@ -1,9 +1,9 @@
 extern crate gl;
 extern crate glutin;
-extern crate nanovg;
-extern crate nalgebra;
-extern crate unicode_normalization;
 extern crate indextree;
+extern crate nalgebra;
+extern crate nanovg;
+extern crate unicode_normalization;
 
 mod gui;
 mod event;
@@ -12,7 +12,7 @@ use std::cell::Cell;
 
 use indextree as it;
 
-use gui::{View, Color};
+use gui::{Color, View};
 use gui::div;
 use gui::main_window::MainWindow;
 use gui::widget;
@@ -22,10 +22,17 @@ fn main() {
     let mut main_window = MainWindow::new().expect("Failed to create window!");
     main_window.on_close.add_handler(|| running.set(false));
 
-    let nvg = nanovg::ContextBuilder::new().stencil_strokes().build().expect("Failed to create NanoVG context!");
-    let image = nanovg::Image::new(&nvg).build_from_file("assets/testimg.png").expect("Failed to load image!");
-    let font_arial = nanovg::Font::from_file(&nvg, "testfont", "assets/arial.ttf").expect("Failed to load font!");
-    let font_moderno = nanovg::Font::from_file(&nvg, "modern", "assets/moderno.ttf").expect("Modernism.ttf");
+    let nvg = nanovg::ContextBuilder::new()
+        .stencil_strokes()
+        .build()
+        .expect("Failed to create NanoVG context!");
+    let image = nanovg::Image::new(&nvg)
+        .build_from_file("assets/testimg.png")
+        .expect("Failed to load image!");
+    let font_arial = nanovg::Font::from_file(&nvg, "testfont", "assets/arial.ttf")
+        .expect("Failed to load font!");
+    let font_moderno =
+        nanovg::Font::from_file(&nvg, "modern", "assets/moderno.ttf").expect("Modernism.ttf");
 
     let mut main_screen = MainScreen::new(font_moderno, font_arial);
 
@@ -49,7 +56,8 @@ struct MainScreen<'a> {
 impl<'a> MainScreen<'a> {
     fn new(title_font: nanovg::Font<'a>, chat_font: nanovg::Font<'a>) -> Self {
         let mut view = View::without_bbox();
-        let header = view.add_div(None,
+        let header = view.add_div(
+            None,
             div::SpaceDivBuilder::new()
                 .width(div::Unit::Relative(1.0))
                 .height(div::Unit::Pixels(40))
@@ -57,16 +65,23 @@ impl<'a> MainScreen<'a> {
                 .build(),
         );
 
-        let header_title = view.add_div(Some(header),
+        let header_title = view.add_div(
+            Some(header),
             div::SpaceDivBuilder::new()
                 .width(div::Unit::Relative(0.25))
                 .height(div::Unit::Relative(1.0))
                 .min_width(div::Unit::Pixels(250))
-                .widget(Box::new(widget::Label::new(title_font, Color::white(), 32.0, "Chorus Studio")))
+                .widget(Box::new(widget::Label::new(
+                    title_font,
+                    Color::white(),
+                    32.0,
+                    "Chorus Studio",
+                )))
                 .build(),
         );
 
-        let body = view.add_div(None,
+        let body = view.add_div(
+            None,
             div::SpaceDivBuilder::new()
                 .width(div::Unit::Relative(1.0))
                 .height(div::Unit::Calc(Box::new(|data| data.remaining - 100)))
@@ -74,7 +89,8 @@ impl<'a> MainScreen<'a> {
                 .build(),
         );
 
-        let chat = view.add_div(Some(body),
+        let chat = view.add_div(
+            Some(body),
             div::SpaceDivBuilder::new()
                 .width(div::Unit::Relative(0.25))
                 .height(div::Unit::Relative(1.0))
@@ -102,13 +118,19 @@ impl<'a> MainScreen<'a> {
     fn update(&mut self) {
         self.ticks += 1;
         if self.ticks % 100 == 0 {
-            self.view.add_div(Some(self.chat),
+            self.view.add_div(
+                Some(self.chat),
                 div::SpaceDivBuilder::new()
                     .width(div::Unit::Relative(1.0))
                     .height(div::Unit::Pixels(32))
-                    .widget(Box::new(widget::Label::new(self.chat_font, Color::white(), 20.0, "fake chat message")))
+                    .widget(Box::new(widget::Label::new(
+                        self.chat_font,
+                        Color::white(),
+                        20.0,
+                        "fake chat message",
+                    )))
                     .background_color(Color::rgba(0.7, 0.2, 0.1, 1.0))
-                    .build()
+                    .build(),
             );
         }
     }

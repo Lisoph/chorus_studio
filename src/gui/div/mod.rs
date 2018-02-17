@@ -55,10 +55,7 @@ pub enum ComputedVisibility {
 
 #[derive(Clone, Copy)]
 pub enum AxisOverflowBehaviour {
-    Clip {
-        min: i32,
-        max: i32,
-    },
+    Clip { min: i32, max: i32 },
     Scroll(i32),
     Overflow,
 }
@@ -87,7 +84,12 @@ impl<'a> SpaceDiv<'a> {
     }
 
     /// Compute the layout of the children divs.
-    pub fn children(&self, arena: &'a it::Arena<SpaceDiv<'a>>, self_id: it::NodeId, self_bbox: Bbox) -> div::SpaceDivIter<it::Children<'a, SpaceDiv<'a>>> {
+    pub fn children(
+        &self,
+        arena: &'a it::Arena<SpaceDiv<'a>>,
+        self_id: it::NodeId,
+        self_bbox: Bbox,
+    ) -> div::SpaceDivIter<it::Children<'a, SpaceDiv<'a>>> {
         let total_size = self_id.children(arena).fold(Size::new(0, 0), |total, div| {
             let div = &arena[div].data;
             total + div.size_pixels(self_bbox.size(), Direction::Vertical, Point::new(0, 0))
@@ -107,7 +109,12 @@ impl<'a> SpaceDiv<'a> {
     }
 
     /// Compute this div's size in pixels.
-    pub fn size_pixels(&self, parent_size: Size, parent_dir: Direction, last_origin: Point) -> Size {
+    pub fn size_pixels(
+        &self,
+        parent_size: Size,
+        parent_dir: Direction,
+        last_origin: Point,
+    ) -> Size {
         let calc_data = UnitCalcData {
             div: &self,
             direction: self.layout_dir,

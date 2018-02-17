@@ -12,10 +12,12 @@ pub struct View<'a> {
 impl<'a> View<'a> {
     pub fn new(bbox: Bbox) -> Self {
         let mut arena = it::Arena::new();
-        let root_div = arena.new_node(div::SpaceDiv::full()
-            .vertical()
-            .vert_align(div::Alignment::Min)
-            .build());
+        let root_div = arena.new_node(
+            div::SpaceDiv::full()
+                .vertical()
+                .vert_align(div::Alignment::Min)
+                .build(),
+        );
         Self {
             bbox,
             arena,
@@ -32,7 +34,9 @@ impl<'a> View<'a> {
 
     pub fn add_div(&mut self, parent: Option<it::NodeId>, div: div::SpaceDiv<'a>) -> it::NodeId {
         let node = self.arena.new_node(div);
-        parent.unwrap_or(self.root_div).append(node, &mut self.arena);
+        parent
+            .unwrap_or(self.root_div)
+            .append(node, &mut self.arena);
         self.children.push(node);
         *self.cache.borrow_mut() = None;
         node
@@ -65,7 +69,12 @@ impl<'a> View<'a> {
     }
 
     /// Draw a single div.
-    fn draw_div(&self, div: &div::SpaceDiv, div_visibility: div::ComputedVisibility, frame: &nanovg::Frame) {
+    fn draw_div(
+        &self,
+        div: &div::SpaceDiv,
+        div_visibility: div::ComputedVisibility,
+        frame: &nanovg::Frame,
+    ) {
         let (div_bbox, x, y) = match div_visibility {
             div::ComputedVisibility::Invisible => return,
             div::ComputedVisibility::Visible { bbox, x, y } => (bbox, x, y),
@@ -73,11 +82,19 @@ impl<'a> View<'a> {
 
         let clip = {
             let mut clip = div_bbox;
-            if let div::AxisOverflowBehaviour::Clip { min: min_val, max: max_val } = x {
+            if let div::AxisOverflowBehaviour::Clip {
+                min: min_val,
+                max: max_val,
+            } = x
+            {
                 clip.min.x = min_val;
                 clip.max.x = max_val;
             }
-            if let div::AxisOverflowBehaviour::Clip { min: min_val, max: max_val } = y {
+            if let div::AxisOverflowBehaviour::Clip {
+                min: min_val,
+                max: max_val,
+            } = y
+            {
                 clip.min.y = min_val;
                 clip.max.y = max_val;
             }
@@ -85,18 +102,21 @@ impl<'a> View<'a> {
         };
 
         if let Some(color) = div.background_color {
-            frame.path(|path| {
-                let origin = (clip.min.x as f32, clip.min.y as f32);
-                let size = (clip.size().x as f32, clip.size().y as f32);
-                path.rect(origin, size);
-                path.fill(nanovg::FillStyle {
-                    coloring_style: nanovg::ColoringStyle::Color(color.into()),
+            frame.path(
+                |path| {
+                    let origin = (clip.min.x as f32, clip.min.y as f32);
+                    let size = (clip.size().x as f32, clip.size().y as f32);
+                    path.rect(origin, size);
+                    path.fill(nanovg::FillStyle {
+                        coloring_style: nanovg::ColoringStyle::Color(color.into()),
+                        ..Default::default()
+                    });
+                },
+                nanovg::PathOptions {
+                    scissor: Some(clip.into()),
                     ..Default::default()
-                });
-            }, nanovg::PathOptions {
-                scissor: Some(clip.into()),
-                ..Default::default()
-            });
+                },
+            );
         }
 
         if let Some(ref widget) = div.widget {
@@ -106,16 +126,18 @@ impl<'a> View<'a> {
 
     /// Recursively visit all space divs of this view.
     fn visit_divs<F>(&self, id: it::NodeId, visibility: div::ComputedVisibility, visitor: &mut F)
-        where F: FnMut(it::NodeId, div::ComputedVisibility)
+    where
+        F: FnMut(it::NodeId, div::ComputedVisibility),
     {
         if let div::ComputedVisibility::Visible { bbox, x, y } = visibility {
             visitor(id, visibility);
 
-            let visible_children = self.arena[id].data.children(&self.arena, id, bbox)
-                .filter(|&(c, vis)| match vis {
+            let visible_children = self.arena[id].data.children(&self.arena, id, bbox).filter(
+                |&(c, vis)| match vis {
                     div::ComputedVisibility::Visible { .. } => true,
                     div::ComputedVisibility::Invisible => false,
-                });
+                },
+            );
 
             for (c, vis) in visible_children {
                 self.visit_divs(c, vis, visitor);
@@ -130,11 +152,15 @@ impl<'a> View<'a> {
             let mut vec = self.cache.borrow_mut();
             let mut vec = vec.get_or_insert_with(|| Vec::with_capacity(64));
             vec.clear();
-            self.visit_divs(self.root_div, div::ComputedVisibility::Visible {
-                bbox: self.bbox,
-                x: div::AxisOverflowBehaviour::Overflow,
-                y: div::AxisOverflowBehaviour::Overflow,
-            }, &mut |div, vis| vec.push((div, vis)));
+            self.visit_divs(
+                self.root_div,
+                div::ComputedVisibility::Visible {
+                    bbox: self.bbox,
+                    x: div::AxisOverflowBehaviour::Overflow,
+                    y: div::AxisOverflowBehaviour::Overflow,
+                },
+                &mut |div, vis| vec.push((div, vis)),
+            );
         }
         self.cache.borrow()
     }

@@ -8,7 +8,7 @@ pub use self::view::View;
 use self::widget::Widget;
 
 use std::cmp::{max, min};
-use std::cell::{RefCell, Ref};
+use std::cell::{Ref, RefCell};
 
 use nalgebra;
 use nanovg;
@@ -124,11 +124,17 @@ mod tests {
         let b4 = Bbox::new(Point::new(0, 5), Point::new(8, 15));
 
         assert!(b1.contains_bbox(b2));
-        assert_eq!(b1.overlapping(b2), Some(Bbox::new(Point::new(2, 2), Point::new(4, 4))));
+        assert_eq!(
+            b1.overlapping(b2),
+            Some(Bbox::new(Point::new(2, 2), Point::new(4, 4)))
+        );
 
         assert!(!b1.contains_bbox(b3));
         assert_eq!(b1.overlapping(b3), None);
 
-        assert_eq!(b1.overlapping(b4), Some(Bbox::new(Point::new(0, 5), Point::new(8, 10))));
+        assert_eq!(
+            b1.overlapping(b4),
+            Some(Bbox::new(Point::new(0, 5), Point::new(8, 10)))
+        );
     }
 }
