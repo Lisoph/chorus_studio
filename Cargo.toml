@@ -8,8 +8,11 @@ gl = "0.7.0"
 glutin = "0.12.0"
 nalgebra = "0.13.1"
 unicode-normalization = "0.1.5"
-indextree = "1.1.0"
+# indextree = "1.1.0"
 
 [dependencies.nanovg]
 git = "https://github.com/KevinKelley/nanovg-rs"
 features = ["gl3"]
+
+[dependencies.indextree]
+path = "../indextree"

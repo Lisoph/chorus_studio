@@ -14,6 +14,9 @@ where
     space_divs: I,
     /// The sum total of all the space division sizes.
     total_size: Size,
+    /// The largest size of all space divisions.
+    /// Basically each div's size `max`d, per axis.
+    max_size: Size,
     /// The containing (parent) bounding box.
     bbox: Bbox,
     /// The direction in with the layout grows.
@@ -40,6 +43,7 @@ where
         arena: &'a it::Arena<div::SpaceDiv<'b>>,
         space_divs: I,
         total_size: Size,
+        max_size: Size,
         bbox: Bbox,
         dir: div::Direction,
         hori_align: div::Alignment,
@@ -51,6 +55,7 @@ where
             arena,
             space_divs,
             total_size,
+            max_size,
             bbox,
             dir,
             hori_align,
@@ -64,7 +69,8 @@ where
 
     /// Compute visibility, overflow and scroll information for a div bbox.
     fn div_visibility(&self, div_bbox: Bbox) -> div::ComputedVisibility {
-        if (self.hori_overflow == div::Overflow::Clip || self.vert_overflow == div::Overflow::Clip)
+        if (self.hori_overflow != div::Overflow::Overflow
+            || self.vert_overflow != div::Overflow::Overflow)
             && !self.bbox.contains_bbox(div_bbox)
         {
             return div::ComputedVisibility::Invisible;
@@ -72,21 +78,31 @@ where
 
         let do_axis = |overflow: div::Overflow,
                        (bbox_min, bbox_max): (i32, i32),
-                       (parent_bbox_min, parent_bbox_max): (i32, i32)|
+                       (parent_bbox_min, parent_bbox_max): (i32, i32),
+                       max_size: i32|
          -> div::AxisOverflowBehaviour {
+            let min_val = max(bbox_min, parent_bbox_min);
+            let max_val = min(bbox_max, parent_bbox_max);
             match overflow {
-                div::Overflow::Clip => {
-                    let min_val = max(bbox_min, parent_bbox_min);
-                    let max_val = min(bbox_max, parent_bbox_max);
-                    div::AxisOverflowBehaviour::Clip {
-                        min: min_val,
-                        max: max_val,
-                    }
-                }
+                div::Overflow::Clip => div::AxisOverflowBehaviour::Clip {
+                    min: min_val,
+                    max: max_val,
+                },
                 div::Overflow::Scroll => {
-                    let size = bbox_max - bbox_min;
-                    let self_size = parent_bbox_max - parent_bbox_min;
-                    div::AxisOverflowBehaviour::Scroll(max(size - self_size, 0))
+                    let size = parent_bbox_max - parent_bbox_min;
+                    let scroll = max(max_size - size, 0);
+                    if scroll > 0 {
+                        div::AxisOverflowBehaviour::Scroll {
+                            min: min_val,
+                            max: max_val,
+                            scroll,
+                        }
+                    } else {
+                        div::AxisOverflowBehaviour::Clip {
+                            min: min_val,
+                            max: max_val,
+                        }
+                    }
                 }
                 div::Overflow::Overflow => div::AxisOverflowBehaviour::Overflow,
             }
@@ -96,12 +112,21 @@ where
             self.hori_overflow,
             (div_bbox.min.x, div_bbox.max.x),
             (self.bbox.min.x, self.bbox.max.x),
+            match self.dir {
+                div::Direction::Horizontal => self.total_size.x,
+                div::Direction::Vertical => self.max_size.x,
+            },
         );
         let y = do_axis(
             self.vert_overflow,
             (div_bbox.min.y, div_bbox.max.y),
             (self.bbox.min.y, self.bbox.max.y),
+            match self.dir {
+                div::Direction::Horizontal => self.max_size.y,
+                div::Direction::Vertical => self.total_size.y,
+            },
         );
+
         div::ComputedVisibility::Visible {
             bbox: div_bbox,
             x,

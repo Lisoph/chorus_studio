@@ -1,3 +1,5 @@
+#![feature(duration_extras)]
+
 extern crate gl;
 extern crate glutin;
 extern crate indextree;
@@ -98,7 +100,7 @@ impl<'a> MainScreen<'a> {
                 .vertical()
                 .vert_align(div::Alignment::Min)
                 .hori_overflow(div::Overflow::Scroll)
-                .vert_overflow(div::Overflow::Clip)
+                .vert_overflow(div::Overflow::Scroll)
                 .background_color(Color::rgba(0.4, 0.2, 0.0, 1.0))
                 .build(),
         );

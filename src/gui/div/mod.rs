@@ -1,12 +1,12 @@
 pub mod div_iter;
 pub use self::div_iter::*;
 
-use gui::*;
+use super::*;
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 #[derive(Clone, Copy)]
-pub struct UnitCalcData<'a, 'b> where 'b: 'a {
+pub struct UnitCalcData<'a, 'b: 'a> {
     pub div: &'a SpaceDiv<'b>,
     pub direction: Direction,
     pub parent_size: Size,
@@ -58,8 +58,30 @@ pub enum ComputedVisibility {
 #[derive(Clone, Copy)]
 pub enum AxisOverflowBehaviour {
     Clip { min: i32, max: i32 },
-    Scroll(i32),
+    Scroll {
+        min: i32,
+        max: i32,
+        scroll: i32,
+    },
     Overflow,
+}
+
+impl AxisOverflowBehaviour {
+    pub fn min_max(&self) -> Option<(i32, i32)> {
+        match *self {
+            AxisOverflowBehaviour::Clip {min, max} |
+            AxisOverflowBehaviour::Scroll {min, max, ..} => Some((min, max)),
+            _ => None,
+        }
+    }
+
+    pub fn scroll(&self) -> Option<i32> {
+        if let AxisOverflowBehaviour::Scroll {scroll, ..} = *self {
+            Some(scroll)
+        } else {
+            None
+        }
+    }
 }
 
 pub struct SpaceDiv<'a> {
@@ -76,7 +98,7 @@ pub struct SpaceDiv<'a> {
     pub vert_overflow: Overflow,
     pub widget: Option<RefCell<Box<Widget + 'a>>>,
     pub background_color: Option<Color>,
-    pub scroll: Point,
+    pub scroll: Cell<Point>,
 }
 
 impl<'a> SpaceDiv<'a> {
@@ -93,15 +115,20 @@ impl<'a> SpaceDiv<'a> {
         self_id: it::NodeId,
         self_bbox: Bbox,
     ) -> div::SpaceDivIter<'b, 'c, it::Children<SpaceDiv<'c>>> {
-        let total_size = self_id.children(arena).fold(Size::new(0, 0), |total, div| {
+        let mut total_size = Size::new(0, 0);
+        let mut max_size = Size::new(0, 0);
+        self_id.children(arena).for_each(|div| {
             let div = &arena[div].data;
-            total + div.size_pixels(self_bbox.size(), Direction::Vertical, Point::new(0, 0))
+            let div_size = div.size_pixels(self_bbox.size(), Direction::Vertical, Point::new(0, 0));
+            total_size += div_size;
+            max_size = point_max(max_size, div_size);
         });
 
         div::SpaceDivIter::new(
             arena,
             self_id.children(arena),
             total_size,
+            max_size,
             self_bbox,
             self.layout_dir,
             self.hori_align,
@@ -205,7 +232,7 @@ impl<'a> Default for SpaceDiv<'a> {
             vert_overflow: Overflow::Overflow,
             widget: None,
             background_color: None,
-            scroll: Point::new(0, 0),
+            scroll: Cell::new(Point::new(0, 0)),
         }
     }
 }

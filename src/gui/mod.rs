@@ -16,11 +16,11 @@ use indextree as it;
 pub type Point = nalgebra::Vector2<i32>;
 pub type Size = nalgebra::Vector2<i32>;
 
-pub fn point_min(a: Point, b: Point) -> Point {
+fn point_min(a: Point, b: Point) -> Point {
     Point::new(min(a.x, b.x), min(a.y, b.y))
 }
 
-pub fn point_max(a: Point, b: Point) -> Point {
+fn point_max(a: Point, b: Point) -> Point {
     Point::new(max(a.x, b.x), max(a.y, b.y))
 }
 
