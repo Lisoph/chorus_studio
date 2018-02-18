@@ -1,4 +1,4 @@
-use gui::{Bbox, Color, div};
+use gui::{div, Bbox, Color};
 use nanovg;
 
 pub trait Widget {
@@ -89,7 +89,5 @@ impl<'a> Widget for Label<'a> {
         );
     }
 
-    fn update(&mut self) {
-        
-    }
+    fn update(&mut self) {}
 }

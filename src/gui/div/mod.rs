@@ -58,25 +58,21 @@ pub enum ComputedVisibility {
 #[derive(Clone, Copy)]
 pub enum AxisOverflowBehaviour {
     Clip { min: i32, max: i32 },
-    Scroll {
-        min: i32,
-        max: i32,
-        scroll: i32,
-    },
+    Scroll { min: i32, max: i32, scroll: i32 },
     Overflow,
 }
 
 impl AxisOverflowBehaviour {
     pub fn min_max(&self) -> Option<(i32, i32)> {
         match *self {
-            AxisOverflowBehaviour::Clip {min, max} |
-            AxisOverflowBehaviour::Scroll {min, max, ..} => Some((min, max)),
+            AxisOverflowBehaviour::Clip { min, max }
+            | AxisOverflowBehaviour::Scroll { min, max, .. } => Some((min, max)),
             _ => None,
         }
     }
 
     pub fn scroll(&self) -> Option<i32> {
-        if let AxisOverflowBehaviour::Scroll {scroll, ..} = *self {
+        if let AxisOverflowBehaviour::Scroll { scroll, .. } = *self {
             Some(scroll)
         } else {
             None
