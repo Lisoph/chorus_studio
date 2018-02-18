@@ -263,7 +263,7 @@ impl<'a> View<'a> {
         if is_none {
             // Build the cache
             let mut vec = self.cache.borrow_mut();
-            let vec = vec.get_or_insert_with(|| Vec::with_capacity(16));
+            let vec = vec.get_or_insert_with(|| Vec::with_capacity(32));
             vec.clear();
             self.visit_divs(
                 self.root_div,
