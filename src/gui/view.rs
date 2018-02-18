@@ -153,7 +153,7 @@ impl<'a> View<'a> {
             visitor(id, visibility);
 
             let visible_children = self.arena[id].data.children(&self.arena, id, bbox).filter(
-                |&(c, vis)| match vis {
+                |&(_, vis)| match vis {
                     div::ComputedVisibility::Visible { .. } => true,
                     div::ComputedVisibility::Invisible => false,
                 },
