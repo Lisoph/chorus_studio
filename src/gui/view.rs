@@ -245,9 +245,7 @@ impl<'a> View<'a> {
                 parent,
             });
 
-            let visible_children = self.arena[id].data.children(&self.arena, id, bbox);
-
-            for (c, vis) in visible_children {
+            for (c, vis) in self.arena[id].data.children(&self.arena, id, bbox) {
                 self.visit_divs(c, vis, Some((id, bbox)), visitor);
             }
         }
