@@ -1,4 +1,4 @@
-use gui::{Bbox, Color};
+use gui::{Bbox, Color, div};
 use nanovg;
 
 pub trait Widget {
@@ -8,8 +8,8 @@ pub trait Widget {
     /// than the div's `bbox`. The parameter `clip` specifies this actual bounding box which
     /// the widget must not exceed.
     fn draw(&self, bbox: Bbox, clip: Bbox, frame: &nanovg::Frame);
-    /// Update the widgets internal state.
-    fn update(&mut self, bbox: Bbox);
+    /// Update the widgets internal state. Get's called before every draw invocation.
+    fn update(&mut self);
     // fn handle_window_event(&mut self, event: &glutin::WindowEvent);
 }
 
@@ -52,7 +52,7 @@ impl<'a> Widget for Image<'a> {
         );
     }
 
-    fn update(&mut self, bbox: Bbox) {}
+    fn update(&mut self) {}
 }
 
 pub struct Label<'a> {
@@ -89,5 +89,7 @@ impl<'a> Widget for Label<'a> {
         );
     }
 
-    fn update(&mut self, bbox: Bbox) {}
+    fn update(&mut self) {
+        
+    }
 }

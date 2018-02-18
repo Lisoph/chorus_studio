@@ -8,7 +8,6 @@ pub use self::view::View;
 use self::widget::Widget;
 
 use std::cmp::{max, min};
-use std::cell::{Ref, RefCell};
 
 use nalgebra;
 use nanovg;

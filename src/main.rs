@@ -97,7 +97,7 @@ impl<'a> MainScreen<'a> {
                 .min_width(div::Unit::Pixels(100))
                 .vertical()
                 .vert_align(div::Alignment::Min)
-                .hori_overflow(div::Overflow::Clip)
+                .hori_overflow(div::Overflow::Scroll)
                 .vert_overflow(div::Overflow::Clip)
                 .background_color(Color::rgba(0.4, 0.2, 0.0, 1.0))
                 .build(),
@@ -121,7 +121,7 @@ impl<'a> MainScreen<'a> {
             self.view.add_div(
                 Some(self.chat),
                 div::SpaceDivBuilder::new()
-                    .width(div::Unit::Relative(1.0))
+                    .width(div::Unit::Relative(1.5)) // Too wide on purpose
                     .height(div::Unit::Pixels(32))
                     .widget(Box::new(widget::Label::new(
                         self.chat_font,

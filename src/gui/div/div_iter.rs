@@ -4,12 +4,12 @@ use gui::div;
 /// Iterator that computes the positions and sizes of space divisions based on the
 /// parent or containing bounding box.
 /// This is essentially the layout engine.
-pub struct SpaceDivIter<'a, I>
+pub struct SpaceDivIter<'a, 'b: 'a, I>
 where
     I: Iterator<Item = it::NodeId>,
 {
     /// The arena to which the NodeIds refer.
-    arena: &'a it::Arena<div::SpaceDiv<'a>>,
+    arena: &'a it::Arena<div::SpaceDiv<'b>>,
     /// The space divisions to compute the layout of.
     space_divs: I,
     /// The sum total of all the space division sizes.
@@ -32,12 +32,12 @@ where
     previous_end: Point,
 }
 
-impl<'a, I> SpaceDivIter<'a, I>
+impl<'a, 'b: 'a, I> SpaceDivIter<'a, 'b, I>
 where
     I: Iterator<Item = it::NodeId>,
 {
     pub fn new(
-        arena: &'a it::Arena<div::SpaceDiv<'a>>,
+        arena: &'a it::Arena<div::SpaceDiv<'b>>,
         space_divs: I,
         total_size: Size,
         bbox: Bbox,
@@ -110,7 +110,7 @@ where
     }
 }
 
-impl<'a, I> Iterator for SpaceDivIter<'a, I>
+impl<'a, 'b: 'a, I> Iterator for SpaceDivIter<'a, 'b, I>
 where
     I: Iterator<Item = it::NodeId>,
 {

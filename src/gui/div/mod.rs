@@ -3,9 +3,11 @@ pub use self::div_iter::*;
 
 use gui::*;
 
+use std::cell::RefCell;
+
 #[derive(Clone, Copy)]
-pub struct UnitCalcData<'a> {
-    pub div: &'a SpaceDiv<'a>,
+pub struct UnitCalcData<'a, 'b> where 'b: 'a {
+    pub div: &'a SpaceDiv<'b>,
     pub direction: Direction,
     pub parent_size: Size,
     pub remaining: i32,
@@ -72,8 +74,9 @@ pub struct SpaceDiv<'a> {
     pub vert_align: Alignment,
     pub hori_overflow: Overflow,
     pub vert_overflow: Overflow,
-    pub widget: Option<Box<Widget + 'a>>,
+    pub widget: Option<RefCell<Box<Widget + 'a>>>,
     pub background_color: Option<Color>,
+    pub scroll: Point,
 }
 
 impl<'a> SpaceDiv<'a> {
@@ -84,12 +87,12 @@ impl<'a> SpaceDiv<'a> {
     }
 
     /// Compute the layout of the children divs.
-    pub fn children(
-        &self,
-        arena: &'a it::Arena<SpaceDiv<'a>>,
+    pub fn children<'b, 'c>(
+        &'b self,
+        arena: &'b it::Arena<SpaceDiv<'c>>,
         self_id: it::NodeId,
         self_bbox: Bbox,
-    ) -> div::SpaceDivIter<it::Children<'a, SpaceDiv<'a>>> {
+    ) -> div::SpaceDivIter<'b, 'c, it::Children<SpaceDiv<'c>>> {
         let total_size = self_id.children(arena).fold(Size::new(0, 0), |total, div| {
             let div = &arena[div].data;
             total + div.size_pixels(self_bbox.size(), Direction::Vertical, Point::new(0, 0))
@@ -202,6 +205,7 @@ impl<'a> Default for SpaceDiv<'a> {
             vert_overflow: Overflow::Overflow,
             widget: None,
             background_color: None,
+            scroll: Point::new(0, 0),
         }
     }
 }
@@ -278,7 +282,7 @@ impl<'a> SpaceDivBuilder<'a> {
     }
 
     pub fn widget(mut self, widget: Box<Widget + 'a>) -> Self {
-        self.current.widget = Some(widget);
+        self.current.widget = Some(RefCell::new(widget));
         self
     }
 

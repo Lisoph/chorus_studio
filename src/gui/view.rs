@@ -1,6 +1,8 @@
 use gui::*;
 use gui::div;
 
+use std::cell::{Ref, RefCell};
+
 pub struct View<'a> {
     bbox: Bbox,
     arena: it::Arena<div::SpaceDiv<'a>>,
@@ -80,6 +82,7 @@ impl<'a> View<'a> {
             div::ComputedVisibility::Visible { bbox, x, y } => (bbox, x, y),
         };
 
+        // Build clip bbox
         let clip = {
             let mut clip = div_bbox;
             if let div::AxisOverflowBehaviour::Clip {
@@ -101,6 +104,7 @@ impl<'a> View<'a> {
             clip
         };
 
+        // Draw background color if we have one
         if let Some(color) = div.background_color {
             frame.path(
                 |path| {
@@ -119,7 +123,23 @@ impl<'a> View<'a> {
             );
         }
 
+        // Draw scroll bars if necessary
+        if let div::AxisOverflowBehaviour::Scroll(sx) = x {
+            frame.path(|path| {
+                let origin = ((div_bbox.min.x + div.scroll.x) as f32, div_bbox.min.y as f32);
+                let size = (sx as f32, 16.0);
+                path.rect(origin, size);
+                path.fill(nanovg::FillStyle {
+                    coloring_style: nanovg::ColoringStyle::Color(Color::red().into()),
+                    .. Default::default()
+                });
+            }, Default::default());
+        }
+
+        // Draw the widget
         if let Some(ref widget) = div.widget {
+            let mut widget = widget.borrow_mut();
+            widget.update();
             widget.draw(div_bbox, clip, frame);
         }
     }
@@ -150,7 +170,7 @@ impl<'a> View<'a> {
         if is_none {
             // Build the cache
             let mut vec = self.cache.borrow_mut();
-            let mut vec = vec.get_or_insert_with(|| Vec::with_capacity(64));
+            let vec = vec.get_or_insert_with(|| Vec::with_capacity(16));
             vec.clear();
             self.visit_divs(
                 self.root_div,
