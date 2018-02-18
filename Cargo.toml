@@ -15,4 +15,4 @@ git = "https://github.com/KevinKelley/nanovg-rs"
 features = ["gl3"]
 
 [dependencies.indextree]
-path = "../indextree"
+git = "https://github.com/saschagrunert/indextree"
