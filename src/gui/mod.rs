@@ -66,11 +66,20 @@ pub struct Bbox {
 
 impl Bbox {
     pub fn new(min: Point, max: Point) -> Self {
-        Bbox { min, max }
+        (Bbox { min, max }).normalize()
     }
 
     pub fn with_size(origin: Point, size: Size) -> Self {
         Bbox::new(origin, origin + size)
+    }
+
+    pub fn normalize(mut self) -> Bbox {
+        let Bbox { min: min_val, max: max_val } = self;
+        self.min.x = min(min_val.x, max_val.x);
+        self.min.y = min(min_val.y, max_val.y);
+        self.max.x = max(min_val.x, max_val.x);
+        self.max.y = max(min_val.y, max_val.y);
+        self
     }
 
     pub fn size(&self) -> Size {
@@ -78,17 +87,16 @@ impl Bbox {
     }
 
     /// Check whether this bounding box partially or completely contains the `other` bounding box.
-    pub fn contains_bbox(&self, other: Bbox) -> bool {
-        let between = |x, min, max| x >= min && x <= max;
-        let x = between(other.min.x, self.min.x, self.max.x)
-            || between(other.max.x, self.min.x, self.max.x);
-        let y = between(other.min.y, self.min.y, self.max.y)
-            || between(other.max.y, self.min.y, self.max.y);
+    pub fn contains_bbox(self, other: Bbox) -> bool {
+        let this = self.normalize();
+        let other = other.normalize();
+        let x = this.min.x <= other.max.x && this.max.x >= other.min.x;
+        let y = this.min.y <= other.max.y && this.max.y >= other.min.y;
         x && y
     }
 
     /// Compute the bounding box made up by the area where `self` and `other` overlap.
-    pub fn overlapping(&self, other: Bbox) -> Option<Bbox> {
+    pub fn overlapping(self, other: Bbox) -> Option<Bbox> {
         if self.contains_bbox(other) {
             let min = point_max(self.min, other.min);
             let max = point_min(self.max, other.max);
@@ -96,6 +104,12 @@ impl Bbox {
         } else {
             None
         }
+    }
+
+    pub fn offset(mut self, p: Point) -> Bbox {
+        self.min += p;
+        self.max += p;
+        self
     }
 }
 
@@ -135,5 +149,13 @@ mod tests {
             b1.overlapping(b4),
             Some(Bbox::new(Point::new(0, 5), Point::new(8, 10)))
         );
+
+        let b1 = Bbox::new(Point::new(10, 10), Point::new(20, 20));
+        let b2 = b1.offset(Point::new(2, 5));
+        assert_eq!(b2, Bbox::new(Point::new(12, 15), Point::new(22, 25)));
+
+        let b2 = Bbox::new(Point::new(10, 10), Point::new(20, 5));
+        assert!(b1.contains_bbox(b2));
+        assert!(b1.contains_bbox(b2.offset(Point::new(-5, 0))));
     }
 }

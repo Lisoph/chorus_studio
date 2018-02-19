@@ -126,6 +126,7 @@ impl<'a> SpaceDiv<'a> {
             total_size,
             max_size,
             self_bbox,
+            self.scroll.get(),
             self.layout_dir,
             self.hori_align,
             self.vert_align,

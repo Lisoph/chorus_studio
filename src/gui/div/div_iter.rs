@@ -19,6 +19,8 @@ where
     max_size: Size,
     /// The containing (parent) bounding box.
     bbox: Bbox,
+    /// The scroll values of the parent bounding box.
+    scroll: Point,
     /// The direction in with the layout grows.
     dir: div::Direction,
     /// The horizontal alignment.
@@ -45,6 +47,7 @@ where
         total_size: Size,
         max_size: Size,
         bbox: Bbox,
+        scroll: Point,
         dir: div::Direction,
         hori_align: div::Alignment,
         vert_align: div::Alignment,
@@ -57,6 +60,7 @@ where
             total_size,
             max_size,
             bbox,
+            scroll,
             dir,
             hori_align,
             vert_align,
@@ -71,7 +75,7 @@ where
     fn div_visibility(&self, div_bbox: Bbox) -> div::ComputedVisibility {
         if (self.hori_overflow != div::Overflow::Overflow
             || self.vert_overflow != div::Overflow::Overflow)
-            && !self.bbox.contains_bbox(div_bbox)
+            && !self.bbox.contains_bbox(div_bbox/*.offset(-self.scroll)*/)
         {
             return div::ComputedVisibility::Invisible;
         }
@@ -79,7 +83,7 @@ where
         let do_axis = |overflow: div::Overflow,
                        (bbox_min, bbox_max): (i32, i32),
                        (parent_bbox_min, parent_bbox_max): (i32, i32),
-                       max_size: i32|
+                       max_size: i32, clip_parent_scroll: i32|
          -> div::AxisOverflowBehaviour {
             let min_val = max(bbox_min, parent_bbox_min);
             let max_val = min(bbox_max, parent_bbox_max);
@@ -93,8 +97,8 @@ where
                     let scroll = max(max_size - size, 0);
                     if scroll > 0 {
                         div::AxisOverflowBehaviour::Scroll {
-                            min: min_val,
-                            max: max_val,
+                            min: max(min_val - clip_parent_scroll, parent_bbox_min),
+                            max: min(max_val - clip_parent_scroll, parent_bbox_max),
                             scroll,
                         }
                     } else {
@@ -116,6 +120,7 @@ where
                 div::Direction::Horizontal => self.total_size.x,
                 div::Direction::Vertical => self.max_size.x,
             },
+            if self.dir == div::Direction::Horizontal { self.scroll.x } else { 0 },
         );
         let y = do_axis(
             self.vert_overflow,
@@ -125,6 +130,7 @@ where
                 div::Direction::Horizontal => self.max_size.y,
                 div::Direction::Vertical => self.total_size.y,
             },
+            if self.dir == div::Direction::Vertical { self.scroll.y } else { 0 },
         );
 
         div::ComputedVisibility::Visible {

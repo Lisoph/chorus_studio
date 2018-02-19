@@ -2,7 +2,6 @@ use gui::*;
 use gui::div;
 
 use std::cell::{Ref, RefCell};
-use std::time::Instant;
 use std::collections::HashMap;
 
 struct CachedDiv {
@@ -20,9 +19,10 @@ pub struct View<'a> {
     root_div: it::NodeId,
     children: Vec<it::NodeId>,
     cache: RefCell<Option<Vec<CachedDiv>>>,
-    time_start: Instant,
-    /// The scrollbars which need to be drawn per div.
-    pending_scrollbars: RefCell<HashMap<it::NodeId, (Option<Bbox>, Option<Bbox>)>>,
+    /// The horizontal scrollbars which need to be drawn per div.
+    pending_hori_scrollbars: RefCell<HashMap<it::NodeId, Bbox>>,
+    /// The vertical scrollbars which need to be drawn per div.
+    pending_vert_scrollbars: RefCell<HashMap<it::NodeId, Bbox>>,
 }
 
 impl<'a> View<'a> {
@@ -40,8 +40,8 @@ impl<'a> View<'a> {
             root_div,
             children: Vec::new(),
             cache: RefCell::new(None),
-            time_start: Instant::now(),
-            pending_scrollbars: RefCell::new(HashMap::new()),
+            pending_hori_scrollbars: RefCell::new(HashMap::new()),
+            pending_vert_scrollbars: RefCell::new(HashMap::new()),
         }
     }
 
@@ -73,13 +73,14 @@ impl<'a> View<'a> {
     }
 
     /// Returns the root space div of this view.
-    pub fn space_div(&self) -> &div::SpaceDiv<'a> {
-        &self.arena[self.root_div].data
+    pub fn space_div(&self, id: it::NodeId) -> &div::SpaceDiv<'a> {
+        &self.arena[id].data
     }
 
     /// Draw the entire frame.
     pub fn draw(&self, frame: &nanovg::Frame) {
-        self.pending_scrollbars.borrow_mut().clear();
+        self.pending_hori_scrollbars.borrow_mut().clear();
+        self.pending_vert_scrollbars.borrow_mut().clear();
 
         if let Some(ref divs) = *self.divs() {
             for cached_div in divs.iter() {
@@ -96,7 +97,7 @@ impl<'a> View<'a> {
     }
 
     fn draw_scrollbars(&self, frame: &nanovg::Frame) {
-        let draw_bbox = |bbox: Bbox| {
+        let draw_bbox = |bbox: &Bbox| {
             frame.path(
                 |path| {
                     let origin = (bbox.min.x as f32, bbox.min.y as f32);
@@ -113,14 +114,59 @@ impl<'a> View<'a> {
             );
         };
 
-        for &(hori_bbox, vert_bbox) in self.pending_scrollbars.borrow().values() {
-            if let Some(hori_bbox) = hori_bbox {
-                draw_bbox(hori_bbox);
+        self.pending_hori_scrollbars.borrow().values().chain(self.pending_vert_scrollbars.borrow().values()).for_each(draw_bbox);
+    }
+
+    fn handle_div_scroll(
+        &self,
+        (mut div_bbox, x, y): (Bbox, div::AxisOverflowBehaviour, div::AxisOverflowBehaviour),
+        parent: Option<(it::NodeId, Bbox)>,
+    ) ->(Bbox, Bbox) {
+        let mut clip = div_bbox;
+        if let Some((parent, parent_bbox)) = parent {
+            // Handle parent div bbox and clip scroll offset
+            let scroll = self.arena[parent].data.scroll.get();
+            if x.scroll().is_some() {
+                div_bbox.min.x -= scroll.x;
+                div_bbox.max.x -= scroll.x;
+                clip.min.x = max(clip.min.x - scroll.x, parent_bbox.min.x);
+                clip.max.x = min(clip.max.x - scroll.x, parent_bbox.max.x);
+            } else if let Some((min_val, max_val)) = x.min_max() {
+                clip.min.x = min_val;
+                clip.max.x = max_val;
             }
-            if let Some(vert_bbox) = vert_bbox {
-                draw_bbox(vert_bbox);
+            if y.scroll().is_some() {
+                div_bbox.min.y -= scroll.y;
+                div_bbox.max.y -= scroll.y;
+                clip.min.y = max(clip.min.y - scroll.y, parent_bbox.min.y);
+                clip.max.y = min(clip.max.y - scroll.y, parent_bbox.max.y);
+            } else if let Some((min_val, max_val)) = y.min_max() {
+                clip.min.y = min_val;
+                clip.max.y = max_val;
+            }
+
+            // Generate scrollbars
+            if let Some(sx) = x.scroll() {
+                let width = max(parent_bbox.size().x - sx, 8);
+                let height = 16;
+                let origin = Point::new(parent_bbox.min.x + scroll.x, parent_bbox.max.y - height);
+                let size = Point::new(width, height);
+                let bbox = Bbox::with_size(origin, size);
+                let mut bars = self.pending_hori_scrollbars.borrow_mut();
+                let _ = bars.entry(parent).or_insert(bbox);
+            }
+            if let Some(sy) = y.scroll() {
+                let width = 16;
+                let height = max(parent_bbox.size().y - sy, 8);
+                let origin = Point::new(parent_bbox.max.x - width, parent_bbox.min.y + scroll.y);
+                let size = Point::new(width, height);
+                let bbox = Bbox::with_size(origin, size);
+                let mut bars = self.pending_vert_scrollbars.borrow_mut();
+                let _ = bars.entry(parent).or_insert(bbox);
             }
         }
+
+        (div_bbox.normalize(), clip.normalize())
     }
 
     /// Draw a single div.
@@ -128,7 +174,7 @@ impl<'a> View<'a> {
         &self,
         div: &div::SpaceDiv,
         div_visibility: div::ComputedVisibility,
-        parent_bbox: Option<(it::NodeId, Bbox)>,
+        parent: Option<(it::NodeId, Bbox)>,
         frame: &nanovg::Frame,
     ) {
         let (div_bbox, x, y) = match div_visibility {
@@ -136,19 +182,21 @@ impl<'a> View<'a> {
             div::ComputedVisibility::Visible { bbox, x, y } => (bbox, x, y),
         };
 
+        let (div_bbox, clip) = self.handle_div_scroll((div_bbox, x, y), parent);
+
         // Build clip bbox
-        let clip = {
-            let mut clip = div_bbox;
-            if let Some((min_val, max_val)) = x.min_max() {
-                clip.min.x = min_val;
-                clip.max.x = max_val;
-            }
-            if let Some((min_val, max_val)) = y.min_max() {
-                clip.min.y = min_val;
-                clip.max.y = max_val;
-            }
-            clip
-        };
+        // let clip = {
+        //     let mut clip = div_bbox;
+        //     if let Some((min_val, max_val)) = x.min_max() {
+        //         clip.min.x = min_val;
+        //         clip.max.x = max_val;
+        //     }
+        //     if let Some((min_val, max_val)) = y.min_max() {
+        //         clip.min.y = min_val;
+        //         clip.max.y = max_val;
+        //     }
+        //     clip
+        // };
 
         // Draw background color if we have one
         if let Some(color) = div.background_color {
@@ -166,66 +214,12 @@ impl<'a> View<'a> {
             );
         }
 
-        // Generate scrollbars
-        if let Some((parent, parent_bbox)) = parent_bbox {
-            if let Some(sx) = x.scroll() {
-                let width = max(parent_bbox.size().x - sx, 8);
-                let height = 16;
-                let origin = Point::new(
-                    parent_bbox.min.x + div.scroll.get().x,
-                    parent_bbox.max.y - height,
-                );
-                let size = Point::new(width, height);
-                let bbox = Bbox::with_size(origin, size);
-                let mut bars = self.pending_scrollbars.borrow_mut();
-                bars.entry(parent).or_insert((None, None)).0 = Some(bbox);
-            }
-            if let Some(sy) = y.scroll() {
-                let width = 16;
-                let height = max(parent_bbox.size().y - sy, 8);
-                let origin = Point::new(
-                    parent_bbox.max.x - width,
-                    parent_bbox.min.y + div.scroll.get().y,
-                );
-                let size = Point::new(width, height);
-                let bbox = Bbox::with_size(origin, size);
-                let mut bars = self.pending_scrollbars.borrow_mut();
-                bars.entry(parent).or_insert((None, None)).1 = Some(bbox);
-            }
-        }
-
-        let scrolled_div_bbox = {
-            let mut bbox = div_bbox;
-            let scroll = div.scroll.get();
-            if let div::AxisOverflowBehaviour::Scroll { .. } = x {
-                bbox.min.x -= scroll.x;
-                bbox.max.x -= scroll.x;
-            }
-            if let div::AxisOverflowBehaviour::Scroll { .. } = y {
-                bbox.min.y -= scroll.y;
-                bbox.max.y -= scroll.y;
-            }
-            bbox
-        };
-
         // Draw the widget
         if let Some(ref widget) = div.widget {
             let mut widget = widget.borrow_mut();
             widget.update();
-            widget.draw(scrolled_div_bbox, clip, frame);
+            widget.draw(div_bbox, clip, frame);
         }
-
-        let max_scroll = {
-            let x = x.scroll().unwrap_or(0);
-            let y = y.scroll().unwrap_or(0);
-            Point::new(x, y)
-        };
-
-        // Scroll right 1 pixel per frame for testing the scrolling.
-        let delta = self.time_start.elapsed();
-        let delta = (delta.as_secs() * 1000 + delta.subsec_millis() as u64) as f32 / 1000.0;
-        let delta = ((delta.sin() * 0.5 + 0.5) * max_scroll.x as f32) as i32;
-        div.scroll.set(point_min(Point::new(delta, 0), max_scroll));
     }
 
     /// Recursively visit all space divs of this view.

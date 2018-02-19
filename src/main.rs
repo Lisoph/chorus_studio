@@ -11,10 +11,11 @@ mod gui;
 mod event;
 
 use std::cell::Cell;
+use std::time::Instant;
 
 use indextree as it;
 
-use gui::{Color, View};
+use gui::{Color, View, Point};
 use gui::div;
 use gui::main_window::MainWindow;
 use gui::widget;
@@ -37,8 +38,14 @@ fn main() {
         nanovg::Font::from_file(&nvg, "modern", "assets/moderno.ttf").expect("Modernism.ttf");
 
     let mut main_screen = MainScreen::new(font_moderno, font_arial);
+    let time_start = Instant::now();
 
     while running.get() {
+        let delta = time_start.elapsed();
+        let delta = (delta.as_secs() * 1000 + delta.subsec_millis() as u64) as f32 / 1000.0;
+        let delta = delta.sin() * 0.5 + 0.5;
+        main_screen.view.space_div(main_screen.chat).scroll.set(Point::new((delta * 40.0) as i32, (delta * 100.0) as i32));
+
         main_screen.update();
         main_window.update_draw(&mut main_screen.view, &nvg);
     }
@@ -119,7 +126,7 @@ impl<'a> MainScreen<'a> {
 
     fn update(&mut self) {
         self.ticks += 1;
-        if self.ticks % 100 == 0 {
+        if self.ticks % 25 == 0 {
             self.view.add_div(
                 Some(self.chat),
                 div::SpaceDivBuilder::new()
