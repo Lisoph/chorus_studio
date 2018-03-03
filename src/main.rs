@@ -15,7 +15,7 @@ use std::time::Instant;
 
 use indextree as it;
 
-use gui::{Color, View, Point};
+use gui::{Color, Point, View};
 use gui::div;
 use gui::main_window::MainWindow;
 use gui::widget;
@@ -44,7 +44,11 @@ fn main() {
         let delta = time_start.elapsed();
         let delta = (delta.as_secs() * 1000 + delta.subsec_millis() as u64) as f32 / 1000.0;
         let delta = delta.sin() * 0.5 + 0.5;
-        main_screen.view.space_div(main_screen.chat).scroll.set(Point::new((delta * 40.0) as i32, (delta * 100.0) as i32));
+        main_screen
+            .view
+            .space_div(main_screen.chat)
+            .scroll
+            .set(Point::new((delta * 40.0) as i32, (delta * 200.0) as i32));
 
         main_screen.update();
         main_window.update_draw(&mut main_screen.view, &nvg);

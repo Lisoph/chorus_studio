@@ -114,14 +114,18 @@ impl<'a> View<'a> {
             );
         };
 
-        self.pending_hori_scrollbars.borrow().values().chain(self.pending_vert_scrollbars.borrow().values()).for_each(draw_bbox);
+        self.pending_hori_scrollbars
+            .borrow()
+            .values()
+            .chain(self.pending_vert_scrollbars.borrow().values())
+            .for_each(draw_bbox);
     }
 
     fn handle_div_scroll(
         &self,
         (mut div_bbox, x, y): (Bbox, div::AxisOverflowBehaviour, div::AxisOverflowBehaviour),
         parent: Option<(it::NodeId, Bbox)>,
-    ) ->(Bbox, Bbox) {
+    ) -> (Bbox, Bbox) {
         let mut clip = div_bbox;
         if let Some((parent, parent_bbox)) = parent {
             // Handle parent div bbox and clip scroll offset
@@ -184,20 +188,6 @@ impl<'a> View<'a> {
 
         let (div_bbox, clip) = self.handle_div_scroll((div_bbox, x, y), parent);
 
-        // Build clip bbox
-        // let clip = {
-        //     let mut clip = div_bbox;
-        //     if let Some((min_val, max_val)) = x.min_max() {
-        //         clip.min.x = min_val;
-        //         clip.max.x = max_val;
-        //     }
-        //     if let Some((min_val, max_val)) = y.min_max() {
-        //         clip.min.y = min_val;
-        //         clip.max.y = max_val;
-        //     }
-        //     clip
-        // };
-
         // Draw background color if we have one
         if let Some(color) = div.background_color {
             frame.path(
@@ -210,7 +200,10 @@ impl<'a> View<'a> {
                         ..Default::default()
                     });
                 },
-                Default::default(),
+                nanovg::PathOptions {
+                    scissor: parent.map(|(_, bbox)| bbox.into()),
+                    ..Default::default()
+                },
             );
         }
 
