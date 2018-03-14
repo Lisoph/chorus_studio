@@ -74,7 +74,10 @@ impl Bbox {
     }
 
     pub fn normalize(mut self) -> Bbox {
-        let Bbox { min: min_val, max: max_val } = self;
+        let Bbox {
+            min: min_val,
+            max: max_val,
+        } = self;
         self.min.x = min(min_val.x, max_val.x);
         self.min.y = min(min_val.y, max_val.y);
         self.max.x = max(min_val.x, max_val.x);
@@ -110,6 +113,13 @@ impl Bbox {
         self.min += p;
         self.max += p;
         self
+    }
+
+    pub fn clip_inside(self, containing: Bbox) -> Bbox {
+        Bbox::new(
+            point_max(self.min, containing.min),
+            point_min(self.max, containing.max),
+        )
     }
 }
 

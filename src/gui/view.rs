@@ -155,7 +155,7 @@ impl<'a> View<'a> {
                 let height = 16;
                 let origin = Point::new(parent_bbox.min.x + scroll.x, parent_bbox.max.y - height);
                 let size = Point::new(width, height);
-                let bbox = Bbox::with_size(origin, size);
+                let bbox = Bbox::with_size(origin, size).clip_inside(parent_bbox);
                 let mut bars = self.pending_hori_scrollbars.borrow_mut();
                 let _ = bars.entry(parent).or_insert(bbox);
             }
@@ -164,7 +164,7 @@ impl<'a> View<'a> {
                 let height = max(parent_bbox.size().y - sy, 8);
                 let origin = Point::new(parent_bbox.max.x - width, parent_bbox.min.y + scroll.y);
                 let size = Point::new(width, height);
-                let bbox = Bbox::with_size(origin, size);
+                let bbox = Bbox::with_size(origin, size).clip_inside(parent_bbox);
                 let mut bars = self.pending_vert_scrollbars.borrow_mut();
                 let _ = bars.entry(parent).or_insert(bbox);
             }
