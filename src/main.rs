@@ -1,150 +1,87 @@
-#![feature(duration_extras)]
-
+extern crate bincode;
 extern crate gl;
-extern crate glutin;
-extern crate indextree;
-extern crate nalgebra;
 extern crate nanovg;
-extern crate unicode_normalization;
+extern crate proto;
+extern crate sdl2;
 
-mod gui;
-mod event;
+mod render;
+mod ui;
 
-use std::cell::Cell;
-use std::time::Instant;
+use std::net;
 
-use indextree as it;
-
-use gui::{Color, Point, View};
-use gui::div;
-use gui::main_window::MainWindow;
-use gui::widget;
+const SERVER_IP: &str = "127.0.0.1:4450";
 
 fn main() {
-    let running = Cell::new(true);
-    let mut main_window = MainWindow::new().expect("Failed to create window!");
-    main_window.on_close.add_handler(|| running.set(false));
-
+    let sdl = sdl2::init().expect("SDL2 init");
+    let video = sdl.video().expect("SDL2 video");
+    video.gl_set_swap_interval(sdl2::video::SwapInterval::VSync);
+    let mut events = sdl.event_pump().expect("SDL2 event pump");
+    let window = video
+        .window("Chorus Studio", 1280, 720)
+        .opengl()
+        .position_centered()
+        .resizable()
+        .build()
+        .expect("SDL2 window");
+    let glctx = window.gl_create_context().expect("OpenGL context");
+    window.gl_make_current(&glctx).expect("OpenGL make current");
+    gl::load_with(|s| video.gl_get_proc_address(s) as *const _);
     let nvg = nanovg::ContextBuilder::new()
         .stencil_strokes()
         .build()
-        .expect("Failed to create NanoVG context!");
-    let image = nanovg::Image::new(&nvg)
-        .build_from_file("assets/testimg.png")
-        .expect("Failed to load image!");
-    let font_arial = nanovg::Font::from_file(&nvg, "testfont", "assets/arial.ttf")
-        .expect("Failed to load font!");
-    let font_moderno =
-        nanovg::Font::from_file(&nvg, "modern", "assets/moderno.ttf").expect("Modernism.ttf");
+        .expect("NanoVG context");
 
-    let mut main_screen = MainScreen::new(font_moderno, font_arial);
-    let time_start = Instant::now();
+    let mut cur_view: Box<dyn ui::View> = Box::new(ui::views::MainLoadingView {
+        cur_load_task: "Connecting to server...".to_owned(),
+    });
 
-    while running.get() {
-        let delta = time_start.elapsed();
-        let delta = (delta.as_secs() * 1000 + delta.subsec_millis() as u64) as f32 / 1000.0;
-        let delta = delta.sin() * 0.5 + 0.5;
-        main_screen
-            .view
-            .space_div(main_screen.chat)
-            .scroll
-            .set(Point::new((delta * 40.0) as i32, (delta * 200.0) as i32));
+    let mut stream = net::TcpStream::connect(SERVER_IP).expect("Server connect");
+    bincode::serialize_into(&mut stream, &proto::Command::ListUsers).expect("serialized");
+    let _resp: proto::Response = bincode::deserialize_from(&stream).expect("Read response");
 
-        main_screen.update();
-        main_window.update_draw(&mut main_screen.view, &nvg);
-    }
-}
+    use render::Fonts;
+    let mut fonts: [nanovg::Font; Fonts::NumFonts as usize] = unsafe { std::mem::uninitialized() };
+    fonts[Fonts::Inter as usize] =
+        nanovg::Font::from_file(&nvg, "Inter UI", "assets/Inter-UI-Regular.ttf")
+            .expect("Font Inter");
+    fonts[Fonts::Vga8 as usize] =
+        nanovg::Font::from_file(&nvg, "PxPlus IBM VGA8", "assets/PxPlus_IBM_VGA8.ttf")
+            .expect("Font VGA8");
+    fonts[Fonts::Moderno as usize] =
+        nanovg::Font::from_file(&nvg, "Moderno", "assets/moderno.ttf").expect("Font Moderno");
+    let render_ctx = render::RenderContext::new(&window, &nvg, fonts);
 
-struct MainScreen<'a> {
-    view: View<'a>,
-    header: it::NodeId,
-    header_title: it::NodeId,
-    body: it::NodeId,
-    chat: it::NodeId,
-    ticks: u64,
-    messages: Vec<it::NodeId>,
-    chat_font: nanovg::Font<'a>,
-}
+    let mut frames = 0usize;
 
-impl<'a> MainScreen<'a> {
-    fn new(title_font: nanovg::Font<'a>, chat_font: nanovg::Font<'a>) -> Self {
-        let mut view = View::without_bbox();
-        let header = view.add_div(
-            None,
-            div::SpaceDivBuilder::new()
-                .width(div::Unit::Relative(1.0))
-                .height(div::Unit::Pixels(40))
-                .background_color(Color::rgba(0.0, 1.0, 0.0, 0.2))
-                .build(),
-        );
-
-        let header_title = view.add_div(
-            Some(header),
-            div::SpaceDivBuilder::new()
-                .width(div::Unit::Relative(0.25))
-                .height(div::Unit::Relative(1.0))
-                .min_width(div::Unit::Pixels(250))
-                .widget(Box::new(widget::Label::new(
-                    title_font,
-                    Color::white(),
-                    32.0,
-                    "Chorus Studio",
-                )))
-                .build(),
-        );
-
-        let body = view.add_div(
-            None,
-            div::SpaceDivBuilder::new()
-                .width(div::Unit::Relative(1.0))
-                .height(div::Unit::Calc(Box::new(|data| data.remaining - 100)))
-                .horizontal()
-                .build(),
-        );
-
-        let chat = view.add_div(
-            Some(body),
-            div::SpaceDivBuilder::new()
-                .width(div::Unit::Relative(0.25))
-                .height(div::Unit::Relative(1.0))
-                .min_width(div::Unit::Pixels(100))
-                .vertical()
-                .vert_align(div::Alignment::Min)
-                .hori_overflow(div::Overflow::Scroll)
-                .vert_overflow(div::Overflow::Scroll)
-                .background_color(Color::rgba(0.4, 0.2, 0.0, 1.0))
-                .build(),
-        );
-
-        Self {
-            view,
-            header,
-            header_title,
-            body,
-            chat,
-            ticks: 0,
-            messages: Vec::new(),
-            chat_font,
+    'main: loop {
+        use sdl2::event::Event::*;
+        for e in events.poll_iter() {
+            match e {
+                Quit { .. } => break 'main,
+                _ => {}
+            }
         }
-    }
 
-    fn update(&mut self) {
-        self.ticks += 1;
-        if self.ticks % 25 == 0 {
-            self.view.add_div(
-                Some(self.chat),
-                div::SpaceDivBuilder::new()
-                    .width(div::Unit::Relative(1.5)) // Too wide on purpose
-                    .height(div::Unit::Pixels(32))
-                    .widget(Box::new(widget::Label::new(
-                        self.chat_font,
-                        Color::white(),
-                        20.0,
-                        "fake chat message",
-                    )))
-                    .background_color(Color::rgba(0.7, 0.2, 0.1, 1.0))
-                    .build(),
-            );
+        unsafe {
+            let (w, h) = window.size();
+            gl::Viewport(0, 0, w as i32, h as i32);
+            gl::ClearColor(0.2, 0.4, 0.8, 1.0);
+            gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT);
         }
+
+        cur_view.present(&render_ctx);
+        window.gl_swap_window();
+
+        match frames {
+            1000 => {
+                let loading =
+                    unsafe { &mut *(&mut *cur_view as *mut _ as *mut ui::views::MainLoadingView) };
+                loading.cur_load_task = "Almost done...".to_owned();
+            }
+            1200 => cur_view = Box::new(ui::views::MainView {}),
+            _ => {}
+        }
+
+        frames += 1;
     }
 }
