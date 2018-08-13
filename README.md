@@ -56,7 +56,7 @@ A community consisting of musicians, composers and audio-engineers of all skill 
 
 ## How to run
 
-As of now, we don't provide prebuilt binaries. If you want to try out Chorus Studio for yourself, you will have to build it from source. Continue reading if you want to do so.
+As of now, I don't provide prebuilt binaries. If you want to try out Chorus Studio for yourself, you will have to build it from source. Continue reading if you want to do so.
 
 Chorus Studio is written in the [Rust programming language](https://www.rust-lang.org), so a working Rust installation is required. Such can be installed easily with [rustup.rs](https://rustup.rs/).
 
