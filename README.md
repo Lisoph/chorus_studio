@@ -1,14 +1,14 @@
-Chorus Studio
-===
+# Chorus Studio
 
 ![Latest screenshot of Chorus Studio](./latest_screenshot.png)
-This is what Chorus Studio currently looks like, if you were to run it.
+
+**Heavily WIP**
 
 ---
 
 Chorus Studio is aiming to be the world's *second* real-time collaborative DAW (digital audio workstation) and simultaneously trying to be the best!
 
-The *second* real-time collaborative DAW? Yes! The first one ever created, at least to my knowledge, is [Ohm Studio](https://www.ohmstudio.com/). Chorus Studio is amiming to be an open source knock-off of Ohm Studio.
+The *second* real-time collaborative DAW? Yes! The first one ever created, at least to my knowledge, is [Ohm Studio](https://www.ohmstudio.com/). Chorus Studio is aiming to be an open source knock-off of Ohm Studio, except better in every way.
 
 ## Major features
 
