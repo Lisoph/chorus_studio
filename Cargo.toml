@@ -6,17 +6,16 @@ authors = ["Daniel Hauser <daniel.hauser@liwest.at>"]
 [dependencies]
 gl = "0.10.0"
 bincode = "1.0.1"
-# unicode-normalization = "0.1.7"
 
 [dependencies.nanovg]
-git = "https://github.com/KevinKelley/nanovg-rs"
-rev = "3b79b9b6ee2625522637cc93862c52d9a901937c"
+# git = "https://github.com/KevinKelley/nanovg-rs"
+# rev = "e139f2dabe87a98de7e20dbd68738a0ea984246f"
+path = "../nanovg-rs"
 features = ["gl3"]
-
-[dependencies.sdl2]
-version = "0.31.0"
-features = ["bundled"]
 
 [dependencies.proto]
 path = "proto"
 version = "0.1.0"
+
+[dependencies.glfw-ffi]
+git = "https://github.com/Lisoph/glfw_ffi"
