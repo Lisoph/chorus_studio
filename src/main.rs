@@ -1,9 +1,9 @@
 extern crate bincode;
-extern crate gl;
 extern crate glfw_ffi;
 extern crate nanovg;
 extern crate proto;
 
+mod gl;
 mod render;
 mod ui;
 
@@ -29,31 +29,37 @@ enum NetThreadMsg {
     Response(proto::Response),
 }
 
-fn main() {
-    // SDL
-    /*let sdl = sdl2::init().expect("SDL2 init");
-    let video = sdl.video().expect("SDL2 video");
-    video.gl_set_swap_interval(sdl2::video::SwapInterval::VSync);
-    let mut events = sdl.event_pump().expect("SDL2 event pump");
-    let mut window = video
-        .window("Chorus Studio", 1280, 720)
-        .opengl()
-        .position_centered()
-        .resizable()
-        .build()
-        .expect("SDL2 window");
-    let glctx = window.gl_create_context().expect("OpenGL context");
-    window.gl_make_current(&glctx).expect("OpenGL make current");*/
+struct ScopeGuard<F: FnMut()> {
+    handler: F,
+}
 
+impl<F: FnMut()> std::ops::Drop for ScopeGuard<F> {
+    fn drop(&mut self) {
+        (self.handler)();
+    }
+}
+
+fn main() {
     unsafe {
         if glfwInit() == 0 {
             panic!("glfwInit");
         }
 
+        let _glfw_guard = ScopeGuard {
+            handler: || glfwTerminate(),
+        };
+
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR as _, 3);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR as _, 2);
+        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT as _, 1);
+        glfwWindowHint(GLFW_OPENGL_PROFILE as _, GLFW_OPENGL_CORE_PROFILE as _);
+        glfwWindowHint(GLFW_SAMPLES as _, 4);
+        glfwWindowHint(GLFW_DOUBLEBUFFER as _, 1);
+
         let window = glfwCreateWindow(
             1280,
             720,
-            b"Chorus Studio!\0".as_ptr() as _,
+            b"Chorus Studio\0".as_ptr() as _,
             ptr::null_mut(),
             ptr::null_mut(),
         );
@@ -66,8 +72,12 @@ fn main() {
 
         glfwMakeContextCurrent(window);
         gl::load_with(|s| {
-            let s = std::ffi::CString::new(s).expect("CString::new");
-            glfwGetProcAddress(s.as_ptr()).expect("glfwGetProcAddress") as *const _
+            let cs = std::ffi::CString::new(s).expect("CString::new");
+            let ptr = glfwGetProcAddress(cs.as_ptr());
+            match ptr {
+                Some(p) => p as *const _,
+                None => panic!("Failed to load GL func: {}", s),
+            }
         });
 
         let nvg = nanovg::ContextBuilder::new()
@@ -111,8 +121,7 @@ fn main() {
 
         // Fonts
         use render::Fonts;
-        let mut fonts: [nanovg::Font; Fonts::NumFonts as usize] =
-            unsafe { std::mem::uninitialized() };
+        let mut fonts: [nanovg::Font; Fonts::NumFonts as usize] = std::mem::uninitialized();
         fonts[Fonts::Inter as usize] =
             nanovg::Font::from_file(&nvg, "Inter UI", "assets/Inter-UI-Regular.ttf")
                 .expect("Font Inter");
@@ -142,7 +151,7 @@ fn main() {
                 }
 
                 let (mut w, mut h): (c_int, c_int) = (0, 0);
-                glfwGetWindowSize(window, &mut w as *mut _, &mut h as *mut _);
+                glfwGetFramebufferSize(window, &mut w as *mut _, &mut h as *mut _);
                 gl::Viewport(0, 0, w, h);
                 gl::ClearColor(0.2, 0.4, 0.8, 1.0);
                 gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT);
@@ -158,7 +167,5 @@ fn main() {
         if let Ok(..) = main_tx.send(MainThreadMsg::Shutdown) {
             let _ = network_thread.join();
         }
-
-        glfwTerminate();
     }
 }
