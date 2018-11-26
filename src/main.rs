@@ -2,6 +2,7 @@ extern crate bincode;
 extern crate glfw_ffi;
 extern crate nanovg;
 extern crate proto;
+extern crate sha3;
 
 mod gl;
 mod render;
@@ -137,15 +138,23 @@ fn main() {
                 for msg in server_rx.try_iter() {
                     match msg {
                         NetThreadMsg::Connected => {
-                            cur_view = Box::new(ui::views::MainView {
-                                user_list: &cur_users,
+                            cur_view = Box::new(ui::views::LoginView {
+                                username_input: String::new(),
+                                password_input: String::new(),
                             });
-                            let _ = main_tx.send(MainThreadMsg::Command(proto::Command::ListUsers));
                         }
                         NetThreadMsg::Response(res) => match res {
                             proto::Response::UserList(users) => {
                                 cur_users.replace(users);
                             }
+                            proto::Response::LoginOk => {
+                                cur_view = Box::new(ui::views::MainView {
+                                    user_list: &cur_users,
+                                });
+                                let _ =
+                                    main_tx.send(MainThreadMsg::Command(proto::Command::ListUsers));
+                            }
+                            proto::Response::LoginInvalid => {}
                         },
                     }
                 }

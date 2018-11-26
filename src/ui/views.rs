@@ -1,4 +1,4 @@
-use nanovg::{Color, TextOptions};
+use nanovg::{Alignment, Color, TextOptions};
 use proto;
 
 use render::{Fonts, RenderContext};
@@ -138,6 +138,80 @@ impl<'a> super::View for MainView<'a> {
                 );
                 cur_y += size;
             }
+        });
+    }
+}
+
+pub struct LoginView {
+    pub username_input: String,
+    pub password_input: String,
+}
+
+impl super::View for LoginView {
+    fn present(&mut self, ctx: &RenderContext) {
+        let (w, h) = ctx.size();
+        ctx.frame(|f| {
+            // "Login"
+            f.text(
+                ctx.font(Fonts::Moderno),
+                (w / 2.0, h / 4.0),
+                "Login",
+                TextOptions {
+                    align: Alignment::new().center().middle(),
+                    size: 60.0,
+                    color: Color::from_rgb(255, 255, 255),
+                    ..Default::default()
+                },
+            );
+
+            // Button shapes
+            let input_width = w / 3.0;
+            let input_height = 40f32;
+            let input_vert_dist = 20f32;
+            f.path(
+                |p| {
+                    p.rounded_rect(
+                        (w / 3.0, h / 2.0 - input_height - input_vert_dist / 2.0),
+                        (input_width, input_height),
+                        5.0,
+                    );
+                    p.rounded_rect(
+                        (w / 3.0, h / 2.0 + input_vert_dist / 2.0),
+                        (input_width, input_height),
+                        5.0,
+                    );
+                    p.fill(Color::from_rgb(128, 30, 80), Default::default());
+                },
+                Default::default(),
+            );
+
+            // Button contents
+
+            let placeholder_color = Color::from_rgb(128, 128, 128);
+            let content_color = Color::from_rgb(255, 255, 255);
+
+            f.text(
+                ctx.font(Fonts::Inter),
+                (
+                    w / 3.0 + 4.0,
+                    h / 2.0 - input_height / 2.0 - input_vert_dist / 2.0,
+                ),
+                if self.username_input.is_empty() {
+                    "Username"
+                } else {
+                    &self.username_input
+                },
+                TextOptions {
+                    align: Alignment::new().left().middle(),
+                    size: input_height - 4.0,
+                    color: if self.username_input.is_empty() {
+                        placeholder_color
+                    } else {
+                        content_color
+                    },
+                    ..Default::default()
+                },
+            )
         });
     }
 }

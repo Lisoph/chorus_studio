@@ -103,5 +103,6 @@ fn build_response(cmd: proto::Command, user_list: Vec<proto::User>) -> proto::Re
     use proto::Command::*;
     match cmd {
         ListUsers => proto::Response::UserList(user_list),
+        Login { username: _, password: _, } => proto::Response::LoginOk,
     }
 }

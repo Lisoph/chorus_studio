@@ -5,6 +5,7 @@ authors = ["Daniel Hauser <daniel.hauser@liwest.at>"]
 
 [dependencies]
 bincode = "1.0.1"
+sha3 = "0.8.1"
 
 [dependencies.nanovg]
 git = "https://github.com/KevinKelley/nanovg-rs"
