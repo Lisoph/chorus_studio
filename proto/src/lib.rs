@@ -5,7 +5,7 @@ extern crate serde_derive;
 #[derive(Serialize, Deserialize)]
 pub enum Command {
     ListUsers,
-    Login { username: String, password: String },
+    Login { username: String, password: Vec<u8> },
 }
 
 #[derive(Serialize, Deserialize, Debug)]

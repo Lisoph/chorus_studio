@@ -32,6 +32,8 @@ pub enum KeyCode {
     Tab = GLFW_KEY_TAB,
     Left = GLFW_KEY_LEFT,
     Right = GLFW_KEY_RIGHT,
+    Home = GLFW_KEY_HOME,
+    End = GLFW_KEY_END,
 }
 
 #[repr(u32)]

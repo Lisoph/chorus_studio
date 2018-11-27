@@ -1,5 +1,6 @@
 use nanovg::{Alignment, Color, TextOptions};
 use proto;
+use sha3::{Digest, Sha3_256};
 
 use input::{KeyAction, KeyCode, KeyMod};
 use render::{Fonts, RenderContext};
@@ -143,12 +144,13 @@ impl<'a> super::View for MainView<'a> {
     }
 }
 
-pub struct LoginView {
+pub struct LoginView<'a> {
     username_input: String,
     password_input: String,
     username_cursor: usize,
     password_cursor: usize,
     active_input: LoginViewActiveInput,
+    on_submit: Box<FnMut(&str, &[u8]) + 'a>,
 }
 
 #[derive(PartialEq, Eq, Copy, Clone)]
@@ -157,14 +159,15 @@ enum LoginViewActiveInput {
     Password,
 }
 
-impl LoginView {
-    pub fn new() -> Self {
+impl<'a> LoginView<'a> {
+    pub fn new(on_submit: Box<FnMut(&str, &[u8]) + 'a>) -> Self {
         LoginView {
             username_input: String::new(),
             password_input: String::new(),
             username_cursor: 0,
             password_cursor: 0,
             active_input: LoginViewActiveInput::Username,
+            on_submit,
         }
     }
 
@@ -176,7 +179,7 @@ impl LoginView {
     }
 }
 
-impl super::View for LoginView {
+impl<'a> super::View for LoginView<'a> {
     fn present(&mut self, ctx: &RenderContext) {
         let (w, h) = ctx.size();
         ctx.frame(|f| {
@@ -338,6 +341,11 @@ impl super::View for LoginView {
         } else if key.was_pressed_once(KeyCode::Return) {
             if self.active_input == LoginViewActiveInput::Username {
                 self.active_input = LoginViewActiveInput::Password;
+            } else if self.active_input == LoginViewActiveInput::Password {
+                (self.on_submit)(
+                    &self.username_input,
+                    Sha3_256::digest(self.password_input.as_bytes()).as_slice(),
+                );
             }
         } else if key.was_pressed_once(KeyCode::Tab) && key.with_modifier(KeyMod::Shift) {
             if self.active_input == LoginViewActiveInput::Password {
@@ -357,10 +365,12 @@ impl super::View for LoginView {
             if *cursor < str_num_chars(string) {
                 *cursor += 1;
             }
-        } else if key.was_pressed_once(KeyCode::Return)
-            && self.active_input == LoginViewActiveInput::Password
-        {
-            // TODO: Submit login
+        } else if key.was_pressed(KeyCode::Home) {
+            let (_, cursor) = self.active_input_data();
+            *cursor = 0;
+        } else if key.was_pressed(KeyCode::End) {
+            let (string, cursor) = self.active_input_data();
+            *cursor = str_num_chars(&string);
         }
     }
 }

@@ -108,6 +108,34 @@ fn main() {
             return;
         }
 
+        // Networking
+        let (main_tx, main_rx) = sync::mpsc::channel();
+        let (server_tx, server_rx) = sync::mpsc::channel();
+        let network_thread = thread::spawn(move || -> Result<(), ()> {
+            let mut stream = net::TcpStream::connect(SERVER_IP).map_err(|_| ())?;
+            server_tx.send(NetThreadMsg::Connected).map_err(|_| ())?;
+            stream
+                .set_read_timeout(Some(time::Duration::from_millis(500)))
+                .map_err(|_| ())?;
+            loop {
+                if let Ok(msg) = main_rx.try_recv() {
+                    match msg {
+                        MainThreadMsg::Shutdown => return Ok(()),
+                        MainThreadMsg::Command(cmd) => {
+                            bincode::serialize_into(&mut stream, &cmd).map_err(|_| ())?;
+                        }
+                    }
+                }
+
+                let resp = bincode::deserialize_from::<_, proto::Response>(&stream);
+                if let Ok(resp) = resp {
+                    server_tx
+                        .send(NetThreadMsg::Response(resp))
+                        .map_err(|_| ())?;
+                }
+            }
+        });
+
         // Data the views depend on
         let load_task = RefCell::new("Connecting to server...".to_owned());
         let cur_users = RefCell::new(Vec::new());
@@ -152,34 +180,6 @@ fn main() {
             .build()
             .expect("NanoVG context");
 
-        // Networking
-        let (main_tx, main_rx) = sync::mpsc::channel();
-        let (server_tx, server_rx) = sync::mpsc::channel();
-        let network_thread = thread::spawn(move || -> Result<(), ()> {
-            let mut stream = net::TcpStream::connect(SERVER_IP).map_err(|_| ())?;
-            server_tx.send(NetThreadMsg::Connected).map_err(|_| ())?;
-            stream
-                .set_read_timeout(Some(time::Duration::from_millis(500)))
-                .map_err(|_| ())?;
-            loop {
-                if let Ok(msg) = main_rx.try_recv() {
-                    match msg {
-                        MainThreadMsg::Shutdown => return Ok(()),
-                        MainThreadMsg::Command(cmd) => {
-                            bincode::serialize_into(&mut stream, &cmd).map_err(|_| ())?;
-                        }
-                    }
-                }
-
-                let resp = bincode::deserialize_from::<_, proto::Response>(&stream);
-                if let Ok(resp) = resp {
-                    server_tx
-                        .send(NetThreadMsg::Response(resp))
-                        .map_err(|_| ())?;
-                }
-            }
-        });
-
         // Fonts
         use render::Fonts;
         let mut fonts: [nanovg::Font; Fonts::NumFonts as usize] = std::mem::uninitialized();
@@ -198,7 +198,16 @@ fn main() {
                 for msg in server_rx.try_iter() {
                     match msg {
                         NetThreadMsg::Connected => {
-                            cur_view.replace(Box::new(ui::views::LoginView::new()));
+                            cur_view.replace(Box::new(ui::views::LoginView::new(Box::new(
+                                |username, password| {
+                                    let _ = main_tx.send(MainThreadMsg::Command(
+                                        proto::Command::Login {
+                                            username: username.to_owned(),
+                                            password: password.to_owned(),
+                                        },
+                                    ));
+                                },
+                            ))));
                         }
                         NetThreadMsg::Response(res) => match res {
                             proto::Response::UserList(users) => {

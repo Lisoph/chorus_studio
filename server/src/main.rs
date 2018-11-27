@@ -67,7 +67,7 @@ fn main() {
                 bincode::deserialize_from(client as &mut std::io::Read);
             match cmd {
                 Ok(cmd) => {
-                    let resp = build_response(cmd, user_list.clone());
+                    let resp = build_response(cmd, &mut user_list);
                     if bincode::serialize_into(client, &resp).is_err() {
                         println!("Failed to write response!");
                     }
@@ -99,10 +99,30 @@ fn main() {
     }
 }
 
-fn build_response(cmd: proto::Command, user_list: Vec<proto::User>) -> proto::Response {
+fn build_response(cmd: proto::Command, user_list: &mut Vec<proto::User>) -> proto::Response {
     use proto::Command::*;
     match cmd {
-        ListUsers => proto::Response::UserList(user_list),
-        Login { username: _, password: _, } => proto::Response::LoginOk,
+        ListUsers => proto::Response::UserList(user_list.clone()),
+        Login { username, password, } => {
+            let password_hex = {
+                use std::fmt::Write;
+                let mut buf = String::with_capacity(password.len() * 2);
+                for b in password.iter() {
+                    let _ = write!(&mut buf, "{:X}", b);
+                }
+                buf
+            };
+            println!("Login with username '{}' and password '{}'", username, password_hex);
+            if password == [0xc0u8, 0x06, 0x7d, 0x4a, 0xf4, 0xe8, 0x7f, 0x00, 0xdb, 0xac, 0x63, 0xb6, 0x15, 0x68, 0x28, 0x23, 0x70, 0x59, 0x17, 0x2d, 0x1b, 0xbe, 0xac, 0x67, 0x42, 0x73, 0x45, 0xd6, 0xa9, 0xfd, 0xa4, 0x84] {
+                user_list.push(proto::User {
+                    name: username,
+                    status: proto::UserStatus::Avail,
+                    in_project: None,
+                });
+                proto::Response::LoginOk
+            } else {
+                proto::Response::LoginInvalid
+            }
+        },
     }
 }
