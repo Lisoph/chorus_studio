@@ -140,19 +140,19 @@ fn main() {
         let load_task = RefCell::new("Connecting to server...".to_owned());
         let cur_users = RefCell::new(Vec::new());
 
-        let cur_view: RefCell<Box<dyn ui::View>> =
-            RefCell::new(Box::new(ui::views::MainLoadingView {
+        let cur_view: RefCell<ui::DynamicView> =
+            RefCell::new(ui::DynamicView::MainLoading(ui::views::MainLoadingView {
                 cur_load_task: &load_task,
             }));
 
         let mut main_window_ctx = MainWindowCtx {
             char_input_handler: Box::new(|c| {
                 let mut cur_view = cur_view.borrow_mut();
-                cur_view.on_char_input(c);
+                cur_view.view().on_char_input(c);
             }),
             key_input_handler: Box::new(|key, scancode, action, mods| {
                 let mut cur_view = cur_view.borrow_mut();
-                cur_view.on_key_input(input::KeyAction {
+                cur_view.view().on_key_input(input::KeyAction {
                     key: key as u32,
                     scancode: scancode as u32,
                     action: action as u32,
@@ -198,29 +198,34 @@ fn main() {
                 for msg in server_rx.try_iter() {
                     match msg {
                         NetThreadMsg::Connected => {
-                            cur_view.replace(Box::new(ui::views::LoginView::new(Box::new(
-                                |username, password| {
+                            cur_view.replace(ui::DynamicView::Login(ui::views::LoginView::new(
+                                Box::new(|username, password| {
                                     let _ = main_tx.send(MainThreadMsg::Command(
                                         proto::Command::Login {
                                             username: username.to_owned(),
                                             password: password.to_owned(),
                                         },
                                     ));
-                                },
-                            ))));
+                                }),
+                            )));
                         }
                         NetThreadMsg::Response(res) => match res {
                             proto::Response::UserList(users) => {
                                 cur_users.replace(users);
                             }
                             proto::Response::LoginOk => {
-                                cur_view.replace(Box::new(ui::views::MainView {
+                                cur_view.replace(ui::DynamicView::Main(ui::views::MainView {
                                     user_list: &cur_users,
                                 }));
                                 let _ =
                                     main_tx.send(MainThreadMsg::Command(proto::Command::ListUsers));
                             }
-                            proto::Response::LoginInvalid => {}
+                            proto::Response::LoginInvalid => {
+                                let mut cur_view = cur_view.borrow_mut();
+                                if let ui::DynamicView::Login(ref mut login) = *cur_view {
+                                    login.invalid_login();
+                                }
+                            }
                         },
                     }
                 }
@@ -233,7 +238,7 @@ fn main() {
 
                 {
                     let mut cur_view = cur_view.borrow_mut();
-                    cur_view.present(&render_ctx);
+                    cur_view.view().present(&render_ctx);
                 }
                 glfwSwapBuffers(window);
                 glfwPollEvents();

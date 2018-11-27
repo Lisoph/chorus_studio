@@ -6,6 +6,7 @@ use input::{KeyAction, KeyCode, KeyMod};
 use render::{Fonts, RenderContext};
 
 use std::cell::RefCell;
+use std::time::{Duration, Instant};
 
 pub struct MainLoadingView<'a> {
     pub cur_load_task: &'a RefCell<String>,
@@ -151,6 +152,8 @@ pub struct LoginView<'a> {
     password_cursor: usize,
     active_input: LoginViewActiveInput,
     on_submit: Box<FnMut(&str, &[u8]) + 'a>,
+    invalid_timer_start: Option<Instant>,
+    invalid_attempts: usize,
 }
 
 #[derive(PartialEq, Eq, Copy, Clone)]
@@ -168,7 +171,14 @@ impl<'a> LoginView<'a> {
             password_cursor: 0,
             active_input: LoginViewActiveInput::Username,
             on_submit,
+            invalid_timer_start: None,
+            invalid_attempts: 0,
         }
+    }
+
+    pub fn invalid_login(&mut self) {
+        self.invalid_timer_start = Some(Instant::now());
+        self.invalid_attempts += 1;
     }
 
     fn active_input_data(&mut self) -> (&mut String, &mut usize) {
@@ -181,6 +191,12 @@ impl<'a> LoginView<'a> {
 
 impl<'a> super::View for LoginView<'a> {
     fn present(&mut self, ctx: &RenderContext) {
+        if let Some(inst) = self.invalid_timer_start.clone() {
+            if inst.elapsed() > Duration::from_secs(3) {
+                self.invalid_timer_start = None;
+            }
+        }
+
         let (w, h) = ctx.size();
         ctx.frame(|f| {
             // "Login"
@@ -217,10 +233,37 @@ impl<'a> super::View for LoginView<'a> {
                 Default::default(),
             );
 
+            // Invalid credentials text
+
+            if self.invalid_attempts > 0 {
+                f.text(
+                    ctx.font(Fonts::Inter),
+                    (w / 2.0, h / 2.0 + 100.0),
+                    "Your username and / or password is wrong. Please double check.",
+                    TextOptions {
+                        align: Alignment::new().center().middle(),
+                        size: 14.0,
+                        color: Color::from_rgb(255, 150, 150),
+                        ..Default::default()
+                    },
+                )
+            }
+
             // Button contents
 
-            let placeholder_color = Color::from_rgb(128, 128, 128);
-            let content_color = Color::from_rgb(255, 255, 255);
+            let (placeholder_color, content_color) = {
+                if self.invalid_timer_start.is_some() {
+                    (
+                        Color::from_rgb(255, 150, 150),
+                        Color::from_rgb(255, 150, 150),
+                    )
+                } else {
+                    (
+                        Color::from_rgb(128, 128, 128),
+                        Color::from_rgb(255, 255, 255),
+                    )
+                }
+            };
 
             // Username content
             f.text(
