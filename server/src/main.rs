@@ -84,7 +84,7 @@ fn main() {
                             }
                             _ => {
                                 println!("Unhandled error: {:?}", e);
-                                true
+                                false
                             }
                         }
                     } else {

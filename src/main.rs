@@ -5,6 +5,7 @@ extern crate proto;
 extern crate sha3;
 
 mod gl;
+mod input;
 mod render;
 mod ui;
 
@@ -12,7 +13,7 @@ use glfw_ffi::*;
 
 use std::cell::RefCell;
 use std::net;
-use std::os::raw::c_int;
+use std::os::raw::{c_int, c_uint};
 use std::ptr;
 use std::sync;
 use std::thread;
@@ -38,6 +39,43 @@ impl<F: FnMut()> std::ops::Drop for ScopeGuard<F> {
     fn drop(&mut self) {
         (self.handler)();
     }
+}
+
+struct MainWindowCtx<'a> {
+    char_input_handler: Box<Fn(char) + 'a>,
+    key_input_handler: Box<Fn(c_int, c_int, c_int, c_int) + 'a>,
+}
+
+unsafe extern "C" fn char_callback(window: *mut GLFWwindow, codepoint: c_uint) {
+    let ctx = {
+        let ptr = glfwGetWindowUserPointer(window) as *mut MainWindowCtx;
+        if ptr.is_null() {
+            return;
+        } else {
+            &mut *ptr
+        }
+    };
+    if let Some(c) = std::char::from_u32(codepoint) {
+        (ctx.char_input_handler)(c);
+    }
+}
+
+unsafe extern "C" fn key_callback(
+    window: *mut GLFWwindow,
+    key: c_int,
+    scancode: c_int,
+    action: c_int,
+    mods: c_int,
+) {
+    let ctx = {
+        let ptr = glfwGetWindowUserPointer(window) as *mut MainWindowCtx;
+        if ptr.is_null() {
+            return;
+        } else {
+            &mut *ptr
+        }
+    };
+    (ctx.key_input_handler)(key, scancode, action, mods);
 }
 
 fn main() {
@@ -67,9 +105,37 @@ fn main() {
 
         if window.is_null() {
             println!("glfwCreateWindow");
-            glfwTerminate();
             return;
         }
+
+        // Data the views depend on
+        let load_task = RefCell::new("Connecting to server...".to_owned());
+        let cur_users = RefCell::new(Vec::new());
+
+        let cur_view: RefCell<Box<dyn ui::View>> =
+            RefCell::new(Box::new(ui::views::MainLoadingView {
+                cur_load_task: &load_task,
+            }));
+
+        let mut main_window_ctx = MainWindowCtx {
+            char_input_handler: Box::new(|c| {
+                let mut cur_view = cur_view.borrow_mut();
+                cur_view.on_char_input(c);
+            }),
+            key_input_handler: Box::new(|key, scancode, action, mods| {
+                let mut cur_view = cur_view.borrow_mut();
+                cur_view.on_key_input(input::KeyAction {
+                    key: key as u32,
+                    scancode: scancode as u32,
+                    action: action as u32,
+                    mods: mods as u32,
+                });
+            }),
+        };
+
+        glfwSetWindowUserPointer(window, &mut main_window_ctx as *mut MainWindowCtx as *mut _);
+        glfwSetCharCallback(window, Some(char_callback));
+        glfwSetKeyCallback(window, Some(key_callback));
 
         glfwMakeContextCurrent(window);
         gl::load_with(|s| {
@@ -85,12 +151,6 @@ fn main() {
             .stencil_strokes()
             .build()
             .expect("NanoVG context");
-
-        let load_task = RefCell::new("Connecting to server...".to_owned());
-        let cur_users = RefCell::new(Vec::new());
-        let mut cur_view: Box<dyn ui::View> = Box::new(ui::views::MainLoadingView {
-            cur_load_task: &load_task,
-        });
 
         // Networking
         let (main_tx, main_rx) = sync::mpsc::channel();
@@ -138,19 +198,16 @@ fn main() {
                 for msg in server_rx.try_iter() {
                     match msg {
                         NetThreadMsg::Connected => {
-                            cur_view = Box::new(ui::views::LoginView {
-                                username_input: String::new(),
-                                password_input: String::new(),
-                            });
+                            cur_view.replace(Box::new(ui::views::LoginView::new()));
                         }
                         NetThreadMsg::Response(res) => match res {
                             proto::Response::UserList(users) => {
                                 cur_users.replace(users);
                             }
                             proto::Response::LoginOk => {
-                                cur_view = Box::new(ui::views::MainView {
+                                cur_view.replace(Box::new(ui::views::MainView {
                                     user_list: &cur_users,
-                                });
+                                }));
                                 let _ =
                                     main_tx.send(MainThreadMsg::Command(proto::Command::ListUsers));
                             }
@@ -165,7 +222,10 @@ fn main() {
                 gl::ClearColor(0.2, 0.4, 0.8, 1.0);
                 gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT | gl::STENCIL_BUFFER_BIT);
 
-                cur_view.present(&render_ctx);
+                {
+                    let mut cur_view = cur_view.borrow_mut();
+                    cur_view.present(&render_ctx);
+                }
                 glfwSwapBuffers(window);
                 glfwPollEvents();
             }
