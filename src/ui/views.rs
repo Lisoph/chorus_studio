@@ -2,7 +2,7 @@ use nanovg::{Alignment, Color, TextOptions};
 use proto;
 use sha3::{Digest, Sha3_256};
 
-use input::{KeyAction, KeyCode, KeyMod};
+use input::{InputString, KeyAction, KeyCode, KeyMod};
 use render::{Fonts, RenderContext};
 
 use std::cell::RefCell;
@@ -146,8 +146,8 @@ impl<'a> super::View for MainView<'a> {
 }
 
 pub struct LoginView<'a> {
-    username_input: String,
-    password_input: String,
+    username_input: InputString,
+    password_input: InputString,
     username_cursor: usize,
     password_cursor: usize,
     active_input: LoginViewActiveInput,
@@ -165,8 +165,8 @@ enum LoginViewActiveInput {
 impl<'a> LoginView<'a> {
     pub fn new(on_submit: Box<FnMut(&str, &[u8]) + 'a>) -> Self {
         LoginView {
-            username_input: String::new(),
-            password_input: String::new(),
+            username_input: InputString::new(),
+            password_input: InputString::new(),
             username_cursor: 0,
             password_cursor: 0,
             active_input: LoginViewActiveInput::Username,
@@ -181,7 +181,7 @@ impl<'a> LoginView<'a> {
         self.invalid_attempts += 1;
     }
 
-    fn active_input_data(&mut self) -> (&mut String, &mut usize) {
+    fn active_input_data(&mut self) -> (&mut InputString, &mut usize) {
         match self.active_input {
             LoginViewActiveInput::Username => (&mut self.username_input, &mut self.username_cursor),
             LoginViewActiveInput::Password => (&mut self.password_input, &mut self.password_cursor),
@@ -323,12 +323,10 @@ impl<'a> super::View for LoginView<'a> {
                 };
 
                 let (string, cursor) = self.active_input_data();
-                let end_opt = str_char_at(&string, *cursor);
-                let end = end_opt.unwrap_or(string.len());
                 let (adv, _bounds) = f.text_bounds(
                     ctx.font(Fonts::Inter),
                     origin,
-                    &string[0..end],
+                    &string[0..*cursor],
                     TextOptions {
                         align: Alignment::new().left().middle(),
                         size: input_height - 4.0,
@@ -342,18 +340,6 @@ impl<'a> super::View for LoginView<'a> {
                     },
                     Default::default(),
                 );
-
-                // Debug string
-                f.text(
-                    ctx.font(Fonts::Vga8),
-                    (10.0, 10.0),
-                    format!("Char: {}, byte: {:?}", *cursor, end_opt),
-                    TextOptions {
-                        color: Color::from_rgb(0, 255, 0),
-                        size: 12.0,
-                        ..Default::default()
-                    },
-                );
             }
         });
     }
@@ -361,8 +347,7 @@ impl<'a> super::View for LoginView<'a> {
     fn on_char_input(&mut self, c: char) {
         if !c.is_control() {
             let (string, cursor) = self.active_input_data();
-            let idx = str_char_after(&string, *cursor);
-            string.insert(idx, c);
+            string.insert(*cursor, c);
             *cursor += 1;
         }
     }
@@ -371,23 +356,21 @@ impl<'a> super::View for LoginView<'a> {
         if key.was_pressed(KeyCode::Backspace) {
             let (string, cursor) = self.active_input_data();
             if *cursor > 0 {
-                if let Some(idx) = str_char_at(&string, *cursor - 1) {
-                    string.remove(idx);
-                    *cursor -= 1;
-                }
+                string.remove(*cursor - 1);
+                *cursor -= 1;
             }
         } else if key.was_pressed(KeyCode::Delete) {
             let (string, cursor) = self.active_input_data();
-            if let Some(idx) = str_char_at(&string, *cursor) {
-                string.remove(idx);
+            if *cursor < string.len() {
+                string.remove(*cursor);
             }
         } else if key.was_pressed_once(KeyCode::Return) {
             if self.active_input == LoginViewActiveInput::Username {
                 self.active_input = LoginViewActiveInput::Password;
             } else if self.active_input == LoginViewActiveInput::Password {
                 (self.on_submit)(
-                    &self.username_input,
-                    Sha3_256::digest(self.password_input.as_bytes()).as_slice(),
+                    &self.username_input.as_str(),
+                    Sha3_256::digest(self.password_input.as_str().as_bytes()).as_slice(),
                 );
             }
         } else if key.was_pressed_once(KeyCode::Tab) && key.with_modifier(KeyMod::Shift) {
@@ -399,13 +382,13 @@ impl<'a> super::View for LoginView<'a> {
                 self.active_input = LoginViewActiveInput::Password;
             }
         } else if key.was_pressed(KeyCode::Left) {
-            let cursor = self.active_input_data().1;
+            let (_string, cursor) = self.active_input_data();
             if *cursor > 0 {
                 *cursor -= 1;
             }
         } else if key.was_pressed(KeyCode::Right) {
             let (string, cursor) = self.active_input_data();
-            if *cursor < str_num_chars(string) {
+            if *cursor < string.len() {
                 *cursor += 1;
             }
         } else if key.was_pressed(KeyCode::Home) {
@@ -413,59 +396,7 @@ impl<'a> super::View for LoginView<'a> {
             *cursor = 0;
         } else if key.was_pressed(KeyCode::End) {
             let (string, cursor) = self.active_input_data();
-            *cursor = str_num_chars(&string);
+            *cursor = string.len();
         }
-    }
-}
-
-/// Compute byte (index, length) for the `char_index` of string `s`.
-fn str_char_index<S: AsRef<str>>(s: S, char_index: usize) -> (usize, usize) {
-    let s = s.as_ref();
-    let (mut i, _) = match s.char_indices().nth(char_index) {
-        Some(ci) => ci,
-        None => return (s.len(), 0),
-    };
-    let start = i;
-    i += 1;
-    while i < s.len() && !s.is_char_boundary(i) {
-        i += 1;
-    }
-    (start, i - start)
-}
-
-fn str_char_after<S: AsRef<str>>(s: S, char_index: usize) -> usize {
-    let (i, _) = str_char_index(s, char_index);
-    i
-}
-
-fn str_char_at<S: AsRef<str>>(s: S, char_index: usize) -> Option<usize> {
-    let s = s.as_ref();
-    let (i, _) = str_char_index(s, char_index);
-    if i < s.len() {
-        Some(i)
-    } else {
-        None
-    }
-}
-
-fn str_num_chars<S: AsRef<str>>(s: S) -> usize {
-    let s = s.as_ref();
-    s.chars().count()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_string_char_index() {
-        assert_eq!(str_char_index("ABCD", 0), (0, 1));
-        assert_eq!(str_char_index("ABCD", 1), (1, 1));
-        assert_eq!(str_char_index("ABCD", 3), (3, 1));
-        assert_eq!(str_char_index("ABCD", 4), (4, 0));
-        assert_eq!(str_char_index("AÖBC", 0), (0, 1));
-        assert_eq!(str_char_index("AÖBC", 1), (1, 2));
-        assert_eq!(str_char_index("AÖBC", 2), (3, 1));
-        assert_eq!(str_char_index("AÖBC", 4), (5, 0));
     }
 }
