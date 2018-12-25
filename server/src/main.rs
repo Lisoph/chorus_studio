@@ -1,12 +1,36 @@
 extern crate bincode;
 extern crate proto;
+extern crate mio;
 
-use std::io::ErrorKind;
-use std::net::{TcpListener, TcpStream};
+use std::io::{Read, ErrorKind};
 use std::time::Instant;
+use std::collections::HashMap;
+
+use mio::net::{TcpListener, TcpStream};
+use mio::{Poll, Token, Ready, PollOpt, Events};
+
+const LISTENER: Token = Token(0);
+
+struct ClientSock {
+    stream: TcpStream,
+    data_buf: Vec<u8>,
+}
+
+impl ClientSock {
+    fn new(stream: TcpStream) -> Self {
+        Self {
+            stream,
+            data_buf: Vec::with_capacity(1024),
+        }
+    }
+
+    fn read_socket(&mut self) {
+        let _ = self.stream.read_to_end(&mut self.data_buf);
+    }
+}
 
 fn main() {
-    let mut clients = Vec::new();
+    let mut clients = HashMap::new();
     let mut user_list = vec![
         proto::User {
             name: "Lisoph".to_owned(),
@@ -20,12 +44,46 @@ fn main() {
         },
     ];
 
-    let listener = TcpListener::bind("0.0.0.0:4450").expect("TCP listen");
-    listener.set_nonblocking(true).expect("nonblocking socket");
+    let addr = "0.0.0.0:4450".parse().unwrap();
+    let listener = TcpListener::bind(&addr).expect("TCP listen");
+    let poll = Poll::new().expect("Poll");
+    poll.register(&listener, LISTENER, Ready::readable(), PollOpt::edge()).expect("Listener register");
 
     let mut timer = Instant::now();
     let mut user_count = 0usize;
+    let mut cur_client_id = 1usize;
 
+    let mut events = Events::with_capacity(1024);
+    loop {
+        poll.poll(&mut events, None).unwrap();
+        for e in events.iter() {
+            match e.token() {
+                LISTENER => {
+                    let (client_stream, client_addr) = listener.accept().expect("Client accept");
+                    println!("New client: {:?}", client_addr);
+                    let client = ClientSock::new(client_stream);
+                    clients.insert(cur_client_id, client);
+                    poll.register(&clients[&cur_client_id].stream, Token(cur_client_id), Ready::readable(), PollOpt::edge()).expect("Client register");
+                    cur_client_id += 1;
+                },
+                Token(client_id) => {
+                    let mut client = &mut clients.get_mut(&client_id).unwrap();
+                    client.read_socket();
+
+                    let cmd: bincode::Result<proto::Command> = bincode::deserialize_from(client.data_buf.as_slice());
+                    if let Ok(cmd) = cmd {
+                        let resp = build_response(cmd, &mut user_list);
+                        if bincode::serialize_into(&mut client.stream, &resp).is_err() {
+                            println!("Failed to write response!");
+                        }
+                        client.data_buf.clear();
+                    }
+                }
+            }
+        }
+    }
+
+    /*
     loop {
         if let Ok((client, _)) = listener.accept() {
             let client_addr = client
@@ -97,6 +155,7 @@ fn main() {
 
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
+    */
 }
 
 fn build_response(cmd: proto::Command, user_list: &mut Vec<proto::User>) -> proto::Response {
