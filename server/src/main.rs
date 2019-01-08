@@ -27,6 +27,29 @@ impl ClientSock {
     fn read_socket(&mut self) {
         let _ = self.stream.read_to_end(&mut self.data_buf);
     }
+
+    fn try_deserialize(&mut self) -> Option<proto::Command> {
+        let (cmd, bytes_read) = {
+            let mut bytes = self.data_buf.as_slice();
+            let cmd = bincode::deserialize_from(&mut bytes);
+            let bytes_read = bytes.as_ptr() as usize - self.data_buf.as_slice().as_ptr() as usize;
+            (cmd, bytes_read)
+        };
+        println!("try_deserialize: {} bytes", bytes_read);
+        match cmd {
+            Ok(cmd) => {
+                self.data_buf.drain(0..bytes_read);
+                Some(cmd)
+            }
+            Err(e) => {
+                match *e {
+                    bincode::ErrorKind::Io(..) => {} // Not enough data received yet
+                    _ => { self.data_buf.drain(0..bytes_read); },
+                };
+                None
+            }
+        }
+    }
 }
 
 fn main() {
@@ -69,14 +92,11 @@ fn main() {
                 Token(client_id) => {
                     let mut client = &mut clients.get_mut(&client_id).unwrap();
                     client.read_socket();
-
-                    let cmd: bincode::Result<proto::Command> = bincode::deserialize_from(client.data_buf.as_slice());
-                    if let Ok(cmd) = cmd {
+                    if let Some(cmd) = client.try_deserialize() {
                         let resp = build_response(cmd, &mut user_list);
                         if bincode::serialize_into(&mut client.stream, &resp).is_err() {
                             println!("Failed to write response!");
                         }
-                        client.data_buf.clear();
                     }
                 }
             }
