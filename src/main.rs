@@ -217,8 +217,6 @@ fn main() {
                                 cur_view.replace(ui::DynamicView::Main(ui::views::MainView {
                                     user_list: &cur_users,
                                 }));
-                                let _ =
-                                    main_tx.send(MainThreadMsg::Command(proto::Command::ListUsers));
                             }
                             proto::Response::LoginInvalid => {
                                 let mut cur_view = cur_view.borrow_mut();
