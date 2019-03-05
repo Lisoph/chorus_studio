@@ -187,6 +187,19 @@ impl<'a> LoginView<'a> {
             LoginViewActiveInput::Password => (&mut self.password_input, &mut self.password_cursor),
         }
     }
+
+    fn active_input_str(&self) -> (&str, usize) {
+        match self.active_input {
+            LoginViewActiveInput::Username => (&self.username_input.as_str(), self.username_cursor),
+            LoginViewActiveInput::Password => (self.password_stars(), self.password_cursor),
+        }
+    }
+
+    fn password_stars(&self) -> &str {
+        const STARS: &str =
+            "*************************************************************************************";
+        &STARS[0..self.password_input.len().min(STARS.len())]
+    }
 }
 
 impl<'a> super::View for LoginView<'a> {
@@ -299,7 +312,7 @@ impl<'a> super::View for LoginView<'a> {
                 if self.password_input.is_empty() {
                     "Password"
                 } else {
-                    &self.password_input
+                    self.password_stars()
                 },
                 TextOptions {
                     align: Alignment::new().left().middle(),
@@ -322,11 +335,11 @@ impl<'a> super::View for LoginView<'a> {
                     LoginViewActiveInput::Password => (w / 3.0, h / 2.0 + input_vert_dist / 2.0),
                 };
 
-                let (string, cursor) = self.active_input_data();
+                let (string, cursor) = self.active_input_str();
                 let (adv, _bounds) = f.text_bounds(
                     ctx.font(Fonts::Inter),
                     origin,
-                    &string[0..*cursor],
+                    &string[0..cursor],
                     TextOptions {
                         align: Alignment::new().left().middle(),
                         size: input_height - 4.0,
