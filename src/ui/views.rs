@@ -277,7 +277,7 @@ impl<'a> super::View for LoginView<'a> {
                     h / 2.0 - input_height / 2.0 - input_vert_dist / 2.0,
                 ),
                 if self.username_input.is_empty() {
-                    "Username"
+                    "Email"
                 } else {
                     &self.username_input
                 },
