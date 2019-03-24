@@ -132,6 +132,7 @@ fn main() {
                     server_tx
                         .send(NetThreadMsg::Response(resp))
                         .map_err(|_| ())?;
+                    glfwPostEmptyEvent(); // Wake up main loop
                 }
             }
         });
@@ -239,7 +240,7 @@ fn main() {
                     cur_view.view().present(&render_ctx);
                 }
                 glfwSwapBuffers(window);
-                glfwPollEvents();
+                glfwWaitEvents();
             }
         }
 
