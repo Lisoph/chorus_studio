@@ -1,6 +1,9 @@
 extern crate bincode;
 extern crate proto;
 extern crate mio;
+extern crate sqlite;
+
+mod db;
 
 use std::io::Read;
 use std::collections::HashMap;
@@ -60,8 +63,8 @@ impl ClientSock {
 }
 
 fn main() {
-    let mut clients = HashMap::new();
-    let mut user_list = HashMap::new();
+    let mut clients: HashMap<usize, ClientSock> = HashMap::new();
+    let mut user_list: HashMap<usize, String> = HashMap::new();
 
     let addr = "0.0.0.0:4450".parse().unwrap();
     let listener = TcpListener::bind(&addr).expect("TCP listen");
@@ -70,6 +73,8 @@ fn main() {
 
     let mut cur_client_id = 1usize;
     let mut events = Events::with_capacity(1024);
+
+    let database = db::Database::new().expect("Database");
 
     loop {
         poll.poll(&mut events, None).unwrap();
@@ -90,7 +95,7 @@ fn main() {
                         client.try_deserialize()
                     };
                     if let Some(cmd) = cmd {
-                        if let Some(resp) = build_response(cmd, client_id, &mut user_list, &mut clients) {
+                        if let Some(resp) = build_response(&database, cmd, client_id, &mut user_list, &mut clients) {
                             let client = &mut clients.get_mut(&client_id).unwrap();
                             if bincode::serialize_into(&client.stream, &resp).is_err() {
                                 println!("Failed to write response!");
@@ -103,11 +108,19 @@ fn main() {
     }
 }
 
-fn build_response(cmd: proto::Command, client_id: usize, user_list: &mut HashMap<usize, proto::User>, clients: &mut HashMap<usize, ClientSock>) -> Option<proto::Response> {
+fn fetch_users(db: &db::Database, user_list: &HashMap<usize, String>) -> Vec<proto::User> {
+    if let Ok(iter) = db.users_from_user_name_iter(user_list.values()) {
+        iter.filter_map(Result::ok).collect()
+    } else {
+        Vec::new()
+    }
+}
+
+fn build_response(db: &db::Database, cmd: proto::Command, client_id: usize, user_list: &mut HashMap<usize, String>, clients: &mut HashMap<usize, ClientSock>) -> Option<proto::Response> {
     use proto::Command::*;
     match cmd {
-        ListUsers => Some(proto::Response::UserList(user_list.values().cloned().collect())),
-        Login { username, password, } => {
+        ListUsers => Some(proto::Response::UserList(fetch_users(db, user_list))),
+        Login { email, password, } => {
             let password_hex = {
                 use std::fmt::Write;
                 let mut buf = String::with_capacity(password.len() * 2);
@@ -116,16 +129,14 @@ fn build_response(cmd: proto::Command, client_id: usize, user_list: &mut HashMap
                 }
                 buf
             };
-            println!("Login with username '{}' and password '{}'", username, password_hex);
-            if password == [0xc0u8, 0x06, 0x7d, 0x4a, 0xf4, 0xe8, 0x7f, 0x00, 0xdb, 0xac, 0x63, 0xb6, 0x15, 0x68, 0x28, 0x23, 0x70, 0x59, 0x17, 0x2d, 0x1b, 0xbe, 0xac, 0x67, 0x42, 0x73, 0x45, 0xd6, 0xa9, 0xfd, 0xa4, 0x84] {
-                user_list.insert(client_id, proto::User {
-                    name: username,
-                    status: proto::UserStatus::Avail,
-                    in_project: None,
-                });
+            println!("Login with email '{}' and password '{}'", email, password_hex);
+            if let Ok(Some(Ok(user))) = db.user_with_credentials(email.clone(), password_hex) {
+                // We insert the user name instead of the email address, because I want
+                // to avoid moving around and possibly leaking user sensitive data.
+                user_list.insert(client_id, user.user_name);
 
                 // Notify other clients about the newly joined guy
-                let msg = proto::Response::UserList(user_list.values().cloned().collect());
+                let msg = proto::Response::UserList(fetch_users(db, user_list));
                 for c in clients.values() {
                     let _ = bincode::serialize_into(&c.stream, &msg);
                 }
@@ -138,7 +149,7 @@ fn build_response(cmd: proto::Command, client_id: usize, user_list: &mut HashMap
         Disconnect => {
             clients.remove(&client_id);
             user_list.remove(&client_id);
-            let msg = proto::Response::UserList(user_list.values().cloned().collect());
+            let msg = proto::Response::UserList(fetch_users(db, user_list));
             for c in clients.values() {
                 let _ = bincode::serialize_into(&c.stream, &msg);
             }

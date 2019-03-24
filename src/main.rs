@@ -199,10 +199,10 @@ fn main() {
                     match msg {
                         NetThreadMsg::Connected => {
                             cur_view.replace(ui::DynamicView::Login(ui::views::LoginView::new(
-                                Box::new(|username, password| {
+                                Box::new(|email, password| {
                                     let _ = main_tx.send(MainThreadMsg::Command(
                                         proto::Command::Login {
-                                            username: username.to_owned(),
+                                            email: email.to_owned(),
                                             password: password.to_owned(),
                                         },
                                     ));

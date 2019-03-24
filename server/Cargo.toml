@@ -6,6 +6,7 @@ authors = ["Daniel Hauser <daniel.hauser@liwest.at>"]
 [dependencies]
 bincode = "1.0.1"
 mio = "0.6.16"
+sqlite = "0.24.0"
 
 [dependencies.proto]
 path = "../proto"

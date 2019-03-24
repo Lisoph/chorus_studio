@@ -104,7 +104,7 @@ impl<'a> super::View for MainView<'a> {
                 f.text(
                     ctx.font(Fonts::Vga8),
                     (10.0, cur_y),
-                    &user.name,
+                    &user.user_name,
                     TextOptions {
                         size: size,
                         color: Color::from_rgb(255, 255, 255),
@@ -114,28 +114,19 @@ impl<'a> super::View for MainView<'a> {
                 f.text(
                     ctx.font(Fonts::Inter),
                     (200.0, cur_y + 7.0),
-                    match user.status {
-                        proto::UserStatus::Avail => "online",
-                        proto::UserStatus::Away => "away",
-                        proto::UserStatus::Offline => "offline",
+                    match user.activity {
+                        proto::UserActivity::Offline => "offline",
+                        proto::UserActivity::Away => "away",
+                        proto::UserActivity::Active => "online",
+                        proto::UserActivity::InProject(ref prj) => prj,
                     },
                     TextOptions {
-                        size: 14.0,
-                        color: Color::from_rgb(155, 155, 155),
-                        ..Default::default()
-                    },
-                );
-                f.text(
-                    ctx.font(Fonts::Inter),
-                    (250.0, cur_y + 7.0),
-                    &if let Some(ref project) = user.in_project {
-                        format!("In project '{}'", project)
-                    } else {
-                        "Chatting".to_owned()
-                    },
-                    TextOptions {
-                        size: 14.0,
-                        color: Color::from_rgb(155, 155, 155),
+                        size: 16.0,
+                        color: if let proto::UserActivity::InProject(_) = user.activity {
+                            Color::from_rgb(200, 155, 200)
+                        } else {
+                            Color::from_rgb(155, 155, 155)
+                        },
                         ..Default::default()
                     },
                 );
