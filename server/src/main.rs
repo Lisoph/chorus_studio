@@ -130,7 +130,7 @@ fn build_response(db: &db::Database, cmd: proto::Command, client_id: usize, user
                 buf
             };
             println!("Login with email '{}' and password '{}'", email, password_hex);
-            if let Ok(Some(Ok(user))) = db.user_with_credentials(email.clone(), password_hex) {
+            if let Ok(Some(Ok(user))) = db.user_with_credentials(email.clone(), password.clone()) {
                 // We insert the user name instead of the email address, because I want
                 // to avoid moving around and possibly leaking user sensitive data.
                 user_list.insert(client_id, user.user_name);

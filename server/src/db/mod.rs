@@ -57,12 +57,12 @@ impl Database {
 		})
 	}
 
-	pub fn user_with_credentials(&self, email: String, password_hashed: String) -> sql::Result<Option<Fetched<proto::User>>> {
+	pub fn user_with_credentials(&self, email: String, password_hashed: Vec<u8>) -> sql::Result<Option<Fetched<proto::User>>> {
 		let mut cursor = self.db.prepare(r#"
 			SELECT user.user_name FROM user
 			WHERE user.email = ? AND user.password = ?
 		"#)?.cursor();
-		cursor.bind(&[sql::Value::String(email), sql::Value::String(password_hashed)])?;
+		cursor.bind(&[sql::Value::String(email), sql::Value::Binary(password_hashed)])?;
 		Ok((UserIter {
 			cursor,
 		}).next())
