@@ -112,11 +112,22 @@ fn main() {
         let (main_tx, main_rx) = sync::mpsc::channel();
         let (server_tx, server_rx) = sync::mpsc::channel();
         let network_thread = thread::spawn(move || -> Result<(), ()> {
-            let mut stream = net::TcpStream::connect(SERVER_IP).map_err(|_| ())?;
+            // Endlessly connect to server:
+            let mut stream = loop {
+                if let Ok(s) = net::TcpStream::connect(SERVER_IP) {
+                    break s;
+                }
+                thread::sleep(time::Duration::from_secs(4));
+            };
+
+            // We've got a connection, notify the main thread.
             server_tx.send(NetThreadMsg::Connected).map_err(|_| ())?;
+            glfwPostEmptyEvent(); // Wake up main loop
+
             stream
                 .set_read_timeout(Some(time::Duration::from_millis(500)))
                 .map_err(|_| ())?;
+            
             loop {
                 if let Ok(msg) = main_rx.try_recv() {
                     match msg {
