@@ -75,6 +75,9 @@ fn main() {
     let mut events = Events::with_capacity(1024);
 
     let database = db::Database::new().expect("Database");
+    for u in database.all_users().expect("Query").filter_map(Result::ok) {
+        println!("User: {}", u.user_name);
+    }
 
     loop {
         poll.poll(&mut events, None).unwrap();

@@ -67,6 +67,13 @@ impl Database {
 			cursor,
 		}).next())
 	}
+	
+	pub fn all_users(&self) -> sql::Result<UserIter> {
+		let cursor = self.db.prepare("select user.user_name from user")?.cursor();
+		Ok(UserIter {
+			cursor,
+		})
+	}
 }
 
 pub struct UserIter<'a> {
