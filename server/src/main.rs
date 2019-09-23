@@ -1,7 +1,7 @@
 extern crate bincode;
 extern crate proto;
 extern crate mio;
-extern crate sqlite;
+extern crate rusqlite;
 
 mod db;
 
@@ -75,7 +75,7 @@ fn main() {
     let mut events = Events::with_capacity(1024);
 
     let database = db::Database::new().expect("Database");
-    for u in database.all_users().expect("Query").filter_map(Result::ok) {
+    for u in database.all_users().expect("Query").into_iter() {
         println!("User: {}", u.user_name);
     }
 
@@ -112,8 +112,8 @@ fn main() {
 }
 
 fn fetch_users(db: &db::Database, user_list: &HashMap<usize, String>) -> Vec<proto::User> {
-    if let Ok(iter) = db.users_from_user_name_iter(user_list.values()) {
-        iter.filter_map(Result::ok).collect()
+    if let Ok(users) = db.users_from_user_name_iter(user_list.values().map(|s| s.as_ref())) {
+        users
     } else {
         Vec::new()
     }
@@ -133,7 +133,7 @@ fn build_response(db: &db::Database, cmd: proto::Command, client_id: usize, user
                 buf
             };
             println!("Login with email '{}' and password '{}'", email, password_hex);
-            if let Ok(Some(Ok(user))) = db.user_with_credentials(email.clone(), password.clone()) {
+            if let Ok(Some(user)) = db.user_with_credentials(&email, &password) {
                 // We insert the user name instead of the email address, because I want
                 // to avoid moving around and possibly leaking user sensitive data.
                 user_list.insert(client_id, user.user_name);
