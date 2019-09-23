@@ -5,7 +5,11 @@ extern crate rusqlite;
 
 mod db;
 
+use std::io;
 use std::io::Read;
+use std::time::Duration;
+use std::thread;
+use std::sync::mpsc;
 use std::collections::HashMap;
 
 use mio::net::{TcpListener, TcpStream};
@@ -62,6 +66,14 @@ impl ClientSock {
     }
 }
 
+fn ignore_timeout(err: io::Error) -> Option<io::Error> {
+    if err.kind() == io::ErrorKind::WouldBlock {
+        None
+    } else {
+        Some(err)
+    }
+}
+
 fn main() {
     let mut clients: HashMap<usize, ClientSock> = HashMap::new();
     let mut user_list: HashMap<usize, String> = HashMap::new();
@@ -79,8 +91,26 @@ fn main() {
         println!("User: {}", u.user_name);
     }
 
+    println!("Enter \"quit\" to quit the server.");
+
+    let (quit_tx, quit_rx) = mpsc::channel();
+    let quit_thread = thread::spawn(move || {
+        let mut dummy = String::new();
+        let _ = io::stdin().read_line(&mut dummy);
+        let _ = quit_tx.send(());
+    });
+
     loop {
-        poll.poll(&mut events, None).unwrap();
+        if let Ok(()) = quit_rx.try_recv() {
+            break;
+        }
+
+        if let Err(e) = poll.poll(&mut events, Some(Duration::from_secs(1))) {
+            if let Some(e) = ignore_timeout(e) {
+                println!("poll ERR: {}", e);
+            }
+        }
+
         for e in events.iter() {
             match e.token() {
                 LISTENER => {
@@ -109,6 +139,8 @@ fn main() {
             }
         }
     }
+
+    quit_thread.join().unwrap();
 }
 
 fn fetch_users(db: &db::Database, user_list: &HashMap<usize, String>) -> Vec<proto::User> {
@@ -148,7 +180,7 @@ fn build_response(db: &db::Database, cmd: proto::Command, client_id: usize, user
             } else {
                 Some(proto::Response::LoginInvalid)
             }
-        },
+        }
         Disconnect => {
             clients.remove(&client_id);
             user_list.remove(&client_id);
