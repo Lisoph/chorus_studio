@@ -47,15 +47,4 @@ impl Database {
 			})
 		}).optional()
 	}
-	
-	pub fn all_users(&self) -> sql::Result<Vec<proto::User>> {
-		let mut stmt = self.db.prepare("select user.user_name from user")?;
-		let iter = stmt.query_map(sql::NO_PARAMS, |row| {
-			Ok(proto::User {
-				user_name: row.get(0)?,
-				activity: proto::UserActivity::Active,
-			})
-		})?.filter_map(Result::ok);
-		Ok(iter.collect())
-	}
 }

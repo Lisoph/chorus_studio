@@ -87,9 +87,6 @@ fn main() {
     let mut events = Events::with_capacity(1024);
 
     let database = db::Database::new().expect("Database");
-    for u in database.all_users().expect("Query").into_iter() {
-        println!("User: {}", u.user_name);
-    }
 
     println!("Enter \"quit\" to quit the server.");
 
