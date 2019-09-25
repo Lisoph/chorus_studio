@@ -112,12 +112,19 @@ fn main() {
         let (main_tx, main_rx) = sync::mpsc::channel();
         let (server_tx, server_rx) = sync::mpsc::channel();
         let network_thread = thread::spawn(move || -> Result<(), ()> {
+            use std::str::FromStr;
+            let server_addr = net::SocketAddr::from_str(SERVER_IP).map_err(|_| ())?;
+            
             // Endlessly connect to server:
             let mut stream = loop {
-                if let Ok(s) = net::TcpStream::connect(SERVER_IP) {
+                if let Ok(MainThreadMsg::Shutdown) = main_rx.try_recv() {
+                    return Ok(());
+                }
+
+                let timeout = time::Duration::from_secs(4);
+                if let Ok(s) = net::TcpStream::connect_timeout(&server_addr, timeout) {
                     break s;
                 }
-                thread::sleep(time::Duration::from_secs(4));
             };
 
             // We've got a connection, notify the main thread.
