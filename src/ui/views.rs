@@ -142,7 +142,7 @@ pub struct LoginView<'a> {
     username_cursor: usize,
     password_cursor: usize,
     active_input: LoginViewActiveInput,
-    on_submit: Box<FnMut(&str, &[u8]) + 'a>,
+    on_submit: Box<dyn FnMut(&str, &[u8]) + 'a>,
     invalid_timer_start: Option<Instant>,
     invalid_attempts: usize,
 }
@@ -154,7 +154,7 @@ enum LoginViewActiveInput {
 }
 
 impl<'a> LoginView<'a> {
-    pub fn new(on_submit: Box<FnMut(&str, &[u8]) + 'a>) -> Self {
+    pub fn new(on_submit: Box<dyn FnMut(&str, &[u8]) + 'a>) -> Self {
         LoginView {
             username_input: InputString::new(),
             password_input: InputString::new(),

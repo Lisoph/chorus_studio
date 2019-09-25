@@ -18,6 +18,7 @@ use std::ptr;
 use std::sync;
 use std::thread;
 use std::time;
+use std::mem::MaybeUninit;
 
 const SERVER_IP: &str = "127.0.0.1:4450";
 
@@ -42,8 +43,8 @@ impl<F: FnMut()> std::ops::Drop for ScopeGuard<F> {
 }
 
 struct MainWindowCtx<'a> {
-    char_input_handler: Box<Fn(char) + 'a>,
-    key_input_handler: Box<Fn(c_int, c_int, c_int, c_int) + 'a>,
+    char_input_handler: Box<dyn Fn(char) + 'a>,
+    key_input_handler: Box<dyn Fn(c_int, c_int, c_int, c_int) + 'a>,
 }
 
 unsafe extern "C" fn char_callback(window: *mut GLFWwindow, codepoint: c_uint) {
@@ -76,6 +77,38 @@ unsafe extern "C" fn key_callback(
         }
     };
     (ctx.key_input_handler)(key, scancode, action, mods);
+}
+
+fn load_fonts<'a>(nvg: &'a nanovg::Context) -> Result<[nanovg::Font<'a>; render::Fonts::NumFonts as usize], nanovg::CreateFontError> {
+    use render::Fonts;
+    
+    let inter = nanovg::Font::from_file(&nvg, "Inter UI", "assets/Inter-UI-Regular.ttf")?;
+    let vga8 = nanovg::Font::from_file(&nvg, "PxPlus IBM VGA8", "assets/PxPlus_IBM_VGA8.ttf")?;
+    let moderno = nanovg::Font::from_file(&nvg, "Moderno", "assets/moderno.ttf")?;
+    
+    let mut fonts = MaybeUninit::uninit();
+    let f = fonts.as_mut_ptr() as *mut nanovg::Font;
+    let mut fonts_loaded = 0usize;
+    
+    unsafe {
+        let mut assign = |id: Fonts, font: nanovg::Font<'a>| {
+            f.add(id as usize).write(font);
+            fonts_loaded += 1;
+        };
+        
+        assign(Fonts::Inter, inter);
+        assign(Fonts::Vga8, vga8);
+        assign(Fonts::Moderno, moderno);
+        
+        if fonts_loaded == Fonts::NumFonts as usize {
+            Ok(fonts.assume_init())
+        } else {
+            for i in 0..fonts_loaded {
+                f.add(i).drop_in_place();
+            }
+            panic!("Font loading code doesn't load all fonts!")
+        }
+    }
 }
 
 fn main() {
@@ -200,16 +233,7 @@ fn main() {
             .expect("NanoVG context");
 
         // Fonts
-        use render::Fonts;
-        let mut fonts: [nanovg::Font; Fonts::NumFonts as usize] = std::mem::uninitialized();
-        fonts[Fonts::Inter as usize] =
-            nanovg::Font::from_file(&nvg, "Inter UI", "assets/Inter-UI-Regular.ttf")
-                .expect("Font Inter");
-        fonts[Fonts::Vga8 as usize] =
-            nanovg::Font::from_file(&nvg, "PxPlus IBM VGA8", "assets/PxPlus_IBM_VGA8.ttf")
-                .expect("Font VGA8");
-        fonts[Fonts::Moderno as usize] =
-            nanovg::Font::from_file(&nvg, "Moderno", "assets/moderno.ttf").expect("Font Moderno");
+        let fonts = load_fonts(&nvg).expect("Font loading");
         {
             let render_ctx = render::RenderContext::new(window, &nvg, fonts);
 

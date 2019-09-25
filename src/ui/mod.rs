@@ -16,7 +16,7 @@ pub enum DynamicView<'a> {
 }
 
 impl<'a> DynamicView<'a> {
-    pub fn view(&mut self) -> &mut View {
+    pub fn view(&mut self) -> &mut dyn View {
         match self {
             DynamicView::MainLoading(v) => v,
             DynamicView::Main(v) => v,
